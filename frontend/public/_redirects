@@ -3,4 +3,4 @@
 /*    /index.html   200
 
 # API isteklerini backend'e yönlendir
-/api/*  https://modern-ecommerce-fullstack.onrender.com/api/:splat  200 
+/api/*  https://modern-ecommerce-fullstack.onrender.com/api/:splat  200!

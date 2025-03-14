@@ -9,7 +9,7 @@ require('dotenv').config();
 
 const app = express();
 
-// CORS ayarları
+// CORS ayarları - güçlendirilmiş
 app.use(cors({
     origin: function(origin, callback) {
         const allowedOrigins = [
@@ -30,6 +30,30 @@ app.use(cors({
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
+
+// CORS Preflight için OPTIONS isteklerini ele al
+app.options('*', cors());
+
+// Kök API endpoint'i
+app.get('/api', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Modern E-Commerce API',
+    version: '1.0.0',
+    endpoints: [
+      '/api/products',
+      '/api/products/categories',
+      '/api/users',
+      '/api/auth',
+      '/api/orders',
+      '/api/addresses',
+      '/api/coupons',
+      '/api/settings',
+      '/api/dashboard',
+      '/api/logs'
+    ]
+  });
+});
 
 // Middleware
 app.use(express.json());
@@ -112,4 +136,4 @@ process.on('unhandledRejection', (err) => {
   });
 });
 
-module.exports = app; 
+module.exports = app;
