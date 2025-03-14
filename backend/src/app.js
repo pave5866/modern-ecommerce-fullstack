@@ -34,6 +34,21 @@ app.use(cors({
 // CORS Preflight için OPTIONS isteklerini ele al
 app.options('*', cors());
 
+// Ek CORS middleware - tüm isteklere CORS header'ları ekle
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
+    // OPTIONS isteklerini hemen yanıtla
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+    
+    next();
+});
+
 // Kök API endpoint'i
 app.get('/api', (req, res) => {
   res.json({

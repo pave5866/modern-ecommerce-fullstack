@@ -4,16 +4,37 @@ import { logger } from '../utils'
 // API URL'sini çevre değişkeninden al
 const API_URL = import.meta.env.VITE_APP_API_URL || 'https://modern-ecommerce-fullstack.onrender.com/api'
 
+// Alternatif API URL'leri - CORS sorunu durumunda kullanılacak
+const BACKUP_API_URLS = [
+  '/api', // Vite proxy ile çalışır
+  'https://modern-ecommerce-fullstack.onrender.com/api',
+  'https://cors-anywhere.herokuapp.com/https://modern-ecommerce-fullstack.onrender.com/api'
+];
+
 // Local API instance
 export const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json'
+    'Accept': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest'
   },
-  withCredentials: true, // CORS için gerekli
+  withCredentials: false, // CORS sorunlarını önlemek için false yapıldı
   timeout: 15000 // 15 saniye timeout
 })
+
+// Yedek API instance - CORS sorunu durumunda kullanılacak
+let currentBackupUrlIndex = 0;
+export const backupApi = axios.create({
+  baseURL: BACKUP_API_URLS[0],
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest'
+  },
+  withCredentials: false,
+  timeout: 15000
+});
 
 // Request interceptor
 api.interceptors.request.use(
@@ -37,14 +58,34 @@ api.interceptors.request.use(
 // Response interceptor
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     // CORS hatalarını özel olarak logla
-    if (error.message && error.message.includes('Network Error')) {
+    if (error.message && (error.message.includes('Network Error') || error.message.includes('CORS'))) {
       logger.error('CORS veya ağ hatası:', { 
         error: error.message,
         url: error.config?.url,
         method: error.config?.method
       })
+      
+      // CORS hatası durumunda yedek API'yi dene
+      if (error.config) {
+        try {
+          // Bir sonraki yedek URL'yi kullan
+          currentBackupUrlIndex = (currentBackupUrlIndex + 1) % BACKUP_API_URLS.length;
+          backupApi.defaults.baseURL = BACKUP_API_URLS[currentBackupUrlIndex];
+          
+          logger.info(`Yedek API URL'sine geçiliyor: ${backupApi.defaults.baseURL}`);
+          
+          // Orijinal isteği yedek API ile tekrar dene
+          const retryConfig = { ...error.config };
+          retryConfig.baseURL = backupApi.defaults.baseURL;
+          
+          return axios(retryConfig);
+        } catch (retryError) {
+          logger.error('Yedek API ile de istek başarısız:', { error: retryError.message });
+          return Promise.reject(retryError);
+        }
+      }
     }
     
     if (error.response?.status === 401) {
