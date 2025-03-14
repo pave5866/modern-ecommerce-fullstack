@@ -1,13 +1,18 @@
 import axios from 'axios'
 import { logger } from '../utils'
 
+// API URL'sini çevre değişkeninden al
+const API_URL = import.meta.env.VITE_APP_API_URL || 'https://modern-ecommerce-fullstack.onrender.com/api'
+
 // Local API instance
 export const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
+  baseURL: API_URL,
   headers: {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
   },
-  withCredentials: true // CORS için gerekli
+  withCredentials: true, // CORS için gerekli
+  timeout: 15000 // 15 saniye timeout
 })
 
 // Request interceptor
@@ -24,6 +29,7 @@ api.interceptors.request.use(
     return config
   },
   (error) => {
+    logger.error('API request error:', { error: error.message })
     return Promise.reject(error)
   }
 )
@@ -32,6 +38,15 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // CORS hatalarını özel olarak logla
+    if (error.message && error.message.includes('Network Error')) {
+      logger.error('CORS veya ağ hatası:', { 
+        error: error.message,
+        url: error.config?.url,
+        method: error.config?.method
+      })
+    }
+    
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
       window.location.href = '/login'

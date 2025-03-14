@@ -11,10 +11,24 @@ const app = express();
 
 // CORS ayarları
 app.use(cors({
-    origin: process.env.CORS_ORIGIN,
+    origin: function(origin, callback) {
+        const allowedOrigins = [
+            'https://e-commerce-mernstack.netlify.app',
+            'http://localhost:3000',
+            'http://localhost:5173',
+            'https://modern-full-stack-e-ticaret.netlify.app'
+        ];
+        // origin olmayan isteklere (Postman gibi) veya izin verilen originlere izin ver
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            logger.warn(`CORS hatası: ${origin} kaynağından erişim engellendi`);
+            callback(new Error('CORS politikası tarafından engellendi'), false);
+        }
+    },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
 
 // Middleware
@@ -57,6 +71,16 @@ app.use('/api/users', require('./routes/user.routes'));
 app.use('/api/settings', require('./routes/settings.routes'));
 app.use('/api/dashboard', require('./routes/dashboard.routes'));
 app.use('/api/logs', require('./routes/log.routes'));
+
+// Root endpoint
+app.get('/api', (req, res) => {
+    res.status(200).json({
+        success: true,
+        message: 'API çalışıyor',
+        version: '1.0.0',
+        timestamp: new Date().toISOString()
+    });
+});
 
 // Error handling middleware
 app.use(logError);
