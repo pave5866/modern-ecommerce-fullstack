@@ -5,6 +5,9 @@ import { ProductCard, Slider, CategoryCard } from '../components/ui'
 import { productAPI } from '../services'
 import { motion } from 'framer-motion'
 
+// Doğrudan dummy verileri içe aktaralım
+import { DUMMY_DATA } from '../services/dummyData'
+
 const features = [
   {
     title: 'Ücretsiz Kargo',
@@ -89,7 +92,13 @@ const itemVariants = {
 export default function Home() {
   const { data: productsData, isLoading: productsLoading, error: productsError } = useQuery({
     queryKey: ['products'],
-    queryFn: () => productAPI.getAll(),
+    queryFn: () => {
+      // Doğrudan dummy verileri döndür
+      return {
+        success: true,
+        data: DUMMY_DATA.products
+      };
+    },
     retry: 2,
     retryDelay: 1000,
     staleTime: 1000 * 60 * 5, // 5 dakika
@@ -98,7 +107,13 @@ export default function Home() {
 
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
     queryKey: ['categories'],
-    queryFn: () => productAPI.getCategories(),
+    queryFn: () => {
+      // Doğrudan dummy kategorileri döndür
+      return {
+        success: true,
+        data: DUMMY_DATA.categories
+      };
+    },
     staleTime: 1000 * 60 * 5, // 5 dakika
     cacheTime: 1000 * 60 * 30, // 30 dakika
   })

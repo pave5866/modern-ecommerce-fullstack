@@ -14,6 +14,9 @@ import {
   TagIcon
 } from '@heroicons/react/24/outline'
 
+// Doğrudan dummy verileri içe aktaralım
+import { DUMMY_DATA } from '../services/dummyData'
+
 const ITEMS_PER_PAGE = 15
 const DEBOUNCE_DELAY = 300 // 300ms debounce
 
@@ -157,13 +160,47 @@ export default function Products() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-    isError
+    isError,
+    refetch
   } = useInfiniteQuery({
     queryKey: ['products', appliedFilters.category],
-    queryFn: ({ pageParam = 0 }) =>
-      appliedFilters.category
-        ? productAPI.getByCategory(appliedFilters.category, ITEMS_PER_PAGE, pageParam * ITEMS_PER_PAGE)
-        : productAPI.getAll(ITEMS_PER_PAGE, pageParam * ITEMS_PER_PAGE),
+    queryFn: async ({ pageParam = 0 }) => {
+      console.log('Ürünler getiriliyor, kategori:', appliedFilters.category);
+      
+      try {
+        // Doğrudan dummy verileri kullanalım
+        const allProducts = DUMMY_DATA.products;
+        
+        // Kategori filtresi uygulayalım
+        let filteredProducts = allProducts;
+        if (appliedFilters.category) {
+          const normalizedCategory = appliedFilters.category.toLowerCase().trim();
+          filteredProducts = allProducts.filter(product => {
+            const productCategory = product.category.toLowerCase().trim();
+            return productCategory === normalizedCategory || 
+                  productCategory.replace(/ /g, '-') === normalizedCategory;
+          });
+        }
+        
+        // Sayfalama için ürünleri bölelim
+        const start = pageParam * ITEMS_PER_PAGE;
+        const end = start + ITEMS_PER_PAGE;
+        const paginatedProducts = filteredProducts.slice(start, end);
+        
+        console.log('Dummy verilerden ürünler başarıyla getirildi:', paginatedProducts.length);
+        
+        return {
+          success: true,
+          data: paginatedProducts,
+          skip: start,
+          limit: ITEMS_PER_PAGE,
+          total: filteredProducts.length
+        };
+      } catch (error) {
+        console.error('Ürünleri getirme hatası:', error);
+        throw error;
+      }
+    },
     getNextPageParam: (lastPage) => {
       if (!lastPage?.success || !lastPage?.data) return undefined;
       if (!Array.isArray(lastPage.data) || lastPage.data.length === 0) return undefined;

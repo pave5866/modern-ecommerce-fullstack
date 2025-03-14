@@ -15,25 +15,125 @@ const BACKUP_API_URLS = [
 // Dummy API - geçici çözüm olarak kullanılabilir
 const DUMMY_DATA = {
   products: [
-    { id: 1, name: 'Siyah T-Shirt', price: 149.99, description: 'Rahat ve şık siyah t-shirt', image: 'https://picsum.photos/id/237/200/300', category: 'Giyim' },
-    { id: 2, name: 'Mavi Kot Pantolon', price: 299.99, description: 'Slim fit mavi kot pantolon', image: 'https://picsum.photos/id/238/200/300', category: 'Giyim' },
-    { id: 3, name: 'Spor Ayakkabı', price: 399.99, description: 'Konforlu spor ayakkabı', image: 'https://picsum.photos/id/239/200/300', category: 'Ayakkabı' },
-    { id: 4, name: 'Deri Cüzdan', price: 199.99, description: 'Hakiki deri cüzdan', image: 'https://picsum.photos/id/240/200/300', category: 'Aksesuar' },
-    { id: 5, name: 'Akıllı Saat', price: 1299.99, description: 'Çok fonksiyonlu akıllı saat', image: 'https://picsum.photos/id/241/200/300', category: 'Elektronik' },
-    { id: 6, name: 'Bluetooth Kulaklık', price: 499.99, description: 'Kablosuz bluetooth kulaklık', image: 'https://picsum.photos/id/242/200/300', category: 'Elektronik' },
-    { id: 7, name: 'Laptop Çantası', price: 249.99, description: 'Su geçirmez laptop çantası', image: 'https://picsum.photos/id/243/200/300', category: 'Aksesuar' },
-    { id: 8, name: 'Güneş Gözlüğü', price: 349.99, description: 'UV korumalı güneş gözlüğü', image: 'https://picsum.photos/id/244/200/300', category: 'Aksesuar' },
-    { id: 9, name: 'Kış Montu', price: 899.99, description: 'Sıcak tutan kış montu', image: 'https://picsum.photos/id/245/200/300', category: 'Giyim' },
-    { id: 10, name: 'Spor Çorap', price: 49.99, description: 'Nefes alabilen spor çorap', image: 'https://picsum.photos/id/246/200/300', category: 'Giyim' }
+    { 
+      _id: '1', 
+      name: 'Siyah T-Shirt', 
+      price: 149.99, 
+      description: 'Rahat ve şık siyah t-shirt', 
+      images: ['https://picsum.photos/id/237/300/400'], 
+      category: 'Giyim',
+      stock: 25,
+      rating: 4.5,
+      numReviews: 12
+    },
+    { 
+      _id: '2', 
+      name: 'Mavi Kot Pantolon', 
+      price: 299.99, 
+      description: 'Slim fit mavi kot pantolon', 
+      images: ['https://picsum.photos/id/238/300/400'], 
+      category: 'Giyim',
+      stock: 15,
+      rating: 4.2,
+      numReviews: 8
+    },
+    { 
+      _id: '3', 
+      name: 'Spor Ayakkabı', 
+      price: 399.99, 
+      description: 'Konforlu spor ayakkabı', 
+      images: ['https://picsum.photos/id/239/300/400'], 
+      category: 'Ayakkabı',
+      stock: 10,
+      rating: 4.7,
+      numReviews: 15
+    },
+    { 
+      _id: '4', 
+      name: 'Deri Cüzdan', 
+      price: 199.99, 
+      description: 'Hakiki deri cüzdan', 
+      images: ['https://picsum.photos/id/240/300/400'], 
+      category: 'Aksesuar',
+      stock: 30,
+      rating: 4.0,
+      numReviews: 5
+    },
+    { 
+      _id: '5', 
+      name: 'Akıllı Saat', 
+      price: 1299.99, 
+      description: 'Çok fonksiyonlu akıllı saat', 
+      images: ['https://picsum.photos/id/241/300/400'], 
+      category: 'Elektronik',
+      stock: 8,
+      rating: 4.8,
+      numReviews: 20
+    },
+    { 
+      _id: '6', 
+      name: 'Bluetooth Kulaklık', 
+      price: 499.99, 
+      description: 'Kablosuz bluetooth kulaklık', 
+      images: ['https://picsum.photos/id/242/300/400'], 
+      category: 'Elektronik',
+      stock: 12,
+      rating: 4.6,
+      numReviews: 18
+    },
+    { 
+      _id: '7', 
+      name: 'Laptop Çantası', 
+      price: 249.99, 
+      description: 'Su geçirmez laptop çantası', 
+      images: ['https://picsum.photos/id/243/300/400'], 
+      category: 'Aksesuar',
+      stock: 20,
+      rating: 4.3,
+      numReviews: 9
+    },
+    { 
+      _id: '8', 
+      name: 'Güneş Gözlüğü', 
+      price: 349.99, 
+      description: 'UV korumalı güneş gözlüğü', 
+      images: ['https://picsum.photos/id/244/300/400'], 
+      category: 'Aksesuar',
+      stock: 15,
+      rating: 4.4,
+      numReviews: 11
+    },
+    { 
+      _id: '9', 
+      name: 'Kış Montu', 
+      price: 899.99, 
+      description: 'Sıcak tutan kış montu', 
+      images: ['https://picsum.photos/id/245/300/400'], 
+      category: 'Giyim',
+      stock: 7,
+      rating: 4.9,
+      numReviews: 25
+    },
+    { 
+      _id: '10', 
+      name: 'Spor Çorap', 
+      price: 49.99, 
+      description: 'Nefes alabilen spor çorap', 
+      images: ['https://picsum.photos/id/246/300/400'], 
+      category: 'Giyim',
+      stock: 50,
+      rating: 4.1,
+      numReviews: 7
+    }
   ],
   categories: ['Giyim', 'Ayakkabı', 'Aksesuar', 'Elektronik'],
   users: [
-    { id: 1, name: 'Test Kullanıcı', email: 'test@example.com', role: 'user' },
-    { id: 2, name: 'Admin Kullanıcı', email: 'admin@example.com', role: 'admin' }
+    { _id: '1', name: 'Test Kullanıcı', email: 'test@example.com', role: 'user' },
+    { _id: '2', name: 'Admin Kullanıcı', email: 'admin@example.com', role: 'admin' }
   ],
   orders: [
-    { id: 1, userId: 1, products: [1, 2], totalAmount: 449.98, status: 'completed' },
-    { id: 2, userId: 1, products: [3, 4], totalAmount: 599.98, status: 'processing' }
+    { _id: '1', userId: '1', products: ['1', '2'], totalAmount: 449.98, status: 'completed' },
+    { _id: '2', userId: '1', products: ['3', '4'], totalAmount: 599.98, status: 'processing' }
   ]
 };
 
@@ -72,6 +172,7 @@ api.interceptors.request.use(
     if (USE_DUMMY_DATA) {
       // Bu config'i işaretle, response interceptor'da kullanacağız
       config.useDummyData = true;
+      console.log('Dummy veri kullanımı etkin, API çağrısı işaretlendi:', config.url);
     }
     
     // LocalStorage'dan token'ı al
@@ -88,7 +189,7 @@ api.interceptors.request.use(
     return config
   },
   (error) => {
-    logger.error('API request error:', { error: error.message })
+    console.error('API request error:', error.message);
     return Promise.reject(error)
   }
 )
@@ -101,12 +202,14 @@ api.interceptors.response.use(
       const url = response.config.url;
       const method = response.config.method;
       
+      console.log('Dummy veri kullanılıyor, URL:', url);
+      
       // URL'den endpoint'i çıkar
       const endpoint = url.split('/').pop();
       
       // Dummy veri döndür
       if (url.includes('/products') && !url.includes('/categories')) {
-        logger.info('Dummy ürün verileri kullanılıyor');
+        console.log('Dummy ürün verileri kullanılıyor');
         return {
           ...response,
           data: { 
@@ -118,7 +221,7 @@ api.interceptors.response.use(
           }
         };
       } else if (url.includes('/products/categories') || endpoint === 'categories') {
-        logger.info('Dummy kategori verileri kullanılıyor');
+        console.log('Dummy kategori verileri kullanılıyor');
         return {
           ...response,
           data: { 
@@ -127,7 +230,7 @@ api.interceptors.response.use(
           }
         };
       } else if (url.includes('/users')) {
-        logger.info('Dummy kullanıcı verileri kullanılıyor');
+        console.log('Dummy kullanıcı verileri kullanılıyor');
         return {
           ...response,
           data: { 
@@ -136,7 +239,7 @@ api.interceptors.response.use(
           }
         };
       } else if (url.includes('/orders')) {
-        logger.info('Dummy sipariş verileri kullanılıyor');
+        console.log('Dummy sipariş verileri kullanılıyor');
         return {
           ...response,
           data: { 
@@ -154,12 +257,14 @@ api.interceptors.response.use(
     if (USE_DUMMY_DATA && error.config) {
       const url = error.config.url;
       
+      console.log('API hatası oluştu, dummy veri kullanılacak. URL:', url);
+      
       // URL'den endpoint'i çıkar
       const endpoint = url.split('/').pop();
       
       // Dummy veri döndür
       if (url.includes('/products') && !url.includes('/categories')) {
-        logger.info('Hata durumunda dummy ürün verileri kullanılıyor');
+        console.log('Hata durumunda dummy ürün verileri kullanılıyor');
         return Promise.resolve({ 
           data: { 
             success: true, 
@@ -170,7 +275,7 @@ api.interceptors.response.use(
           } 
         });
       } else if (url.includes('/products/categories') || endpoint === 'categories') {
-        logger.info('Hata durumunda dummy kategori verileri kullanılıyor');
+        console.log('Hata durumunda dummy kategori verileri kullanılıyor');
         return Promise.resolve({ 
           data: { 
             success: true, 
@@ -178,7 +283,7 @@ api.interceptors.response.use(
           } 
         });
       } else if (url.includes('/users')) {
-        logger.info('Hata durumunda dummy kullanıcı verileri kullanılıyor');
+        console.log('Hata durumunda dummy kullanıcı verileri kullanılıyor');
         return Promise.resolve({ 
           data: { 
             success: true, 
@@ -186,7 +291,7 @@ api.interceptors.response.use(
           } 
         });
       } else if (url.includes('/orders')) {
-        logger.info('Hata durumunda dummy sipariş verileri kullanılıyor');
+        console.log('Hata durumunda dummy sipariş verileri kullanılıyor');
         return Promise.resolve({ 
           data: { 
             success: true, 
@@ -198,11 +303,7 @@ api.interceptors.response.use(
     
     // CORS hatalarını özel olarak logla
     if (error.message && (error.message.includes('Network Error') || error.message.includes('CORS'))) {
-      logger.error('CORS veya ağ hatası:', { 
-        error: error.message,
-        url: error.config?.url,
-        method: error.config?.method
-      })
+      console.error('CORS veya ağ hatası:', error.message, 'URL:', error.config?.url);
       
       // CORS hatası durumunda yedek API'yi dene
       if (error.config) {
@@ -211,7 +312,7 @@ api.interceptors.response.use(
           currentBackupUrlIndex = (currentBackupUrlIndex + 1) % BACKUP_API_URLS.length;
           backupApi.defaults.baseURL = BACKUP_API_URLS[currentBackupUrlIndex];
           
-          logger.info(`Yedek API URL'sine geçiliyor: ${backupApi.defaults.baseURL}`);
+          console.log(`Yedek API URL'sine geçiliyor: ${backupApi.defaults.baseURL}`);
           
           // Orijinal isteği yedek API ile tekrar dene
           const retryConfig = { ...error.config };
@@ -219,12 +320,12 @@ api.interceptors.response.use(
           
           return axios(retryConfig);
         } catch (retryError) {
-          logger.error('Yedek API ile de istek başarısız:', { error: retryError.message });
+          console.error('Yedek API ile de istek başarısız:', retryError.message);
           
           // Tüm API'ler başarısız olursa dummy veri kullan
           const endpoint = error.config.url.split('/').pop();
           if (endpoint === 'products' || error.config.url.includes('/products')) {
-            logger.info('Dummy ürün verileri kullanılıyor');
+            console.log('Dummy ürün verileri kullanılıyor');
             return Promise.resolve({ 
               data: { 
                 success: true, 
@@ -232,7 +333,7 @@ api.interceptors.response.use(
               } 
             });
           } else if (endpoint === 'categories' || error.config.url.includes('/categories')) {
-            logger.info('Dummy kategori verileri kullanılıyor');
+            console.log('Dummy kategori verileri kullanılıyor');
             return Promise.resolve({ 
               data: { 
                 success: true, 
@@ -266,7 +367,18 @@ export const dummyApi = axios.create({
 export const productAPI = {
   getAll: async (limit) => {
     try {
+      console.log('getAll çağrıldı, limit:', limit);
       const response = await api.get(`/products${limit ? `?limit=${limit}` : ''}`);
+      console.log('getAll yanıtı:', response?.data);
+      
+      if (USE_DUMMY_DATA) {
+        console.log('Dummy ürün verileri döndürülüyor');
+        return {
+          success: true,
+          data: DUMMY_DATA.products
+        };
+      }
+      
       if (response?.data?.success) {
         return {
           success: true,
@@ -275,12 +387,32 @@ export const productAPI = {
       }
       return { success: false, data: [] };
     } catch (error) {
-      logger.error('Products fetch error:', { error: error.message });
+      console.error('Products fetch error:', error.message);
+      
+      if (USE_DUMMY_DATA) {
+        console.log('Hata durumunda dummy ürün verileri döndürülüyor');
+        return {
+          success: true,
+          data: DUMMY_DATA.products
+        };
+      }
+      
       return { success: false, data: [] };
     }
   },
   getById: async (id) => {
     try {
+      console.log('getById çağrıldı, id:', id);
+      
+      if (USE_DUMMY_DATA) {
+        const product = DUMMY_DATA.products.find(p => p._id === id);
+        console.log('Dummy ürün verisi döndürülüyor:', product);
+        return {
+          success: true,
+          product: product || null
+        };
+      }
+      
       const response = await api.get(`/products/${id}`);
       if (response?.data?.success) {
         return {
@@ -294,7 +426,16 @@ export const productAPI = {
         error: response?.data?.message || 'Ürün bulunamadı'
       };
     } catch (error) {
-      logger.error('Ürün detayı getirme hatası:', { error: error.message });
+      console.error('Ürün detayı getirme hatası:', error.message);
+      
+      if (USE_DUMMY_DATA) {
+        const product = DUMMY_DATA.products.find(p => p._id === id);
+        return {
+          success: true,
+          product: product || null
+        };
+      }
+      
       return { 
         success: false, 
         product: null,
@@ -315,6 +456,16 @@ export const productAPI = {
   delete: (id) => api.delete(`/products/${id}`),
   getCategories: async () => {
     try {
+      console.log('getCategories çağrıldı');
+      
+      if (USE_DUMMY_DATA) {
+        console.log('Dummy kategori verileri döndürülüyor');
+        return {
+          success: true,
+          data: DUMMY_DATA.categories
+        };
+      }
+      
       const response = await api.get('/products/categories');
       if (response?.data?.success) {
         return {
@@ -324,7 +475,15 @@ export const productAPI = {
       }
       return { success: false, data: [] };
     } catch (error) {
-      logger.error('Categories fetch error:', { error: error.message });
+      console.error('Categories fetch error:', error.message);
+      
+      if (USE_DUMMY_DATA) {
+        return {
+          success: true,
+          data: DUMMY_DATA.categories
+        };
+      }
+      
       return { success: false, data: [] };
     }
   },
@@ -345,8 +504,32 @@ export const productAPI = {
   },
   getByCategory: async (category, limit = 15, skip = 0) => {
     try {
+      console.log('getByCategory çağrıldı, category:', category);
+      
+      if (USE_DUMMY_DATA) {
+        // Kategori adını normalize et
+        const normalizedCategory = category.toLowerCase().trim();
+        
+        // Dummy verilerden kategori ile eşleşen ürünleri filtrele
+        const filteredProducts = DUMMY_DATA.products.filter(product => {
+          const productCategory = product.category.toLowerCase().trim();
+          return productCategory === normalizedCategory || 
+                 productCategory.replace(/ /g, '-') === normalizedCategory;
+        });
+        
+        console.log('Dummy kategori ürünleri döndürülüyor:', filteredProducts.length);
+        
+        return {
+          success: true,
+          data: filteredProducts,
+          skip: 0,
+          limit: filteredProducts.length,
+          total: filteredProducts.length
+        };
+      }
+      
       if (!category) {
-        logger.warn('Kategori belirtilmeden getByCategory çağrıldı');
+        console.warn('Kategori belirtilmeden getByCategory çağrıldı');
         return { success: false, data: [], error: 'Kategori belirtilmedi' };
       }
       
@@ -399,10 +582,28 @@ export const productAPI = {
         total: response?.data?.total || 0
       };
     } catch (error) {
-      logger.error('Kategori ürünleri getirme hatası:', { 
-        error: error.message, 
-        category 
-      });
+      console.error('Kategori ürünleri getirme hatası:', error.message, 'category:', category);
+      
+      if (USE_DUMMY_DATA) {
+        // Kategori adını normalize et
+        const normalizedCategory = category.toLowerCase().trim();
+        
+        // Dummy verilerden kategori ile eşleşen ürünleri filtrele
+        const filteredProducts = DUMMY_DATA.products.filter(product => {
+          const productCategory = product.category.toLowerCase().trim();
+          return productCategory === normalizedCategory || 
+                 productCategory.replace(/ /g, '-') === normalizedCategory;
+        });
+        
+        return {
+          success: true,
+          data: filteredProducts,
+          skip: 0,
+          limit: filteredProducts.length,
+          total: filteredProducts.length
+        };
+      }
+      
       return { 
         success: false, 
         data: [], 

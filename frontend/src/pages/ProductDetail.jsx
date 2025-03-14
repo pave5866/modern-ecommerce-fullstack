@@ -7,6 +7,9 @@ import { useState } from 'react'
 import { showToast } from '../utils'
 import logger from '../utils/logger'
 
+// Doğrudan dummy verileri içe aktaralım
+import { DUMMY_DATA } from '../services/dummyData'
+
 export default function ProductDetail() {
   const { id } = useParams()
   const addItem = useCartStore((state) => state.addItem)
@@ -17,11 +20,14 @@ export default function ProductDetail() {
     queryKey: ['product', id],
     queryFn: async () => {
       try {
-        const response = await productAPI.getById(id)
-        if (!response.success) {
-          throw new Error(response.error || 'Ürün bulunamadı')
+        // Doğrudan dummy verilerden ürünü bul
+        const dummyProduct = DUMMY_DATA.products.find(p => p._id === id);
+        
+        if (!dummyProduct) {
+          throw new Error('Ürün bulunamadı');
         }
-        return response.product
+        
+        return dummyProduct;
       } catch (error) {
         logger.error('Ürün getirme hatası:', { error: error.message, productId: id })
         throw error
@@ -34,25 +40,14 @@ export default function ProductDetail() {
     queryFn: async () => {
       try {
         logger.info('Benzer ürünler getiriliyor:', { category: product?.category });
-        const response = await productAPI.getByCategory(product?.category);
         
-        logger.info('Benzer ürünler yanıtı:', { 
-          success: response.success, 
-          dataLength: response.data?.length || 0,
-          category: product?.category 
-        });
+        // Doğrudan dummy verilerden benzer ürünleri filtrele
+        const filteredProducts = DUMMY_DATA.products.filter(p => 
+          p.category === product.category && p._id !== product._id
+        ).slice(0, 4);
         
-        if (!response.success) {
-          return [];
-        }
-        
-        // Mevcut ürünü hariç tut ve en fazla 4 ürün göster
-        const filtered = response.data
-          .filter(p => p._id !== product._id)
-          .slice(0, 4);
-          
-        logger.info('Filtrelenmiş benzer ürünler:', { count: filtered.length });
-        return filtered;
+        logger.info('Filtrelenmiş benzer ürünler:', { count: filteredProducts.length });
+        return filteredProducts;
       } catch (error) {
         logger.error('Benzer ürünleri getirme hatası:', { 
           error: error.message, 
