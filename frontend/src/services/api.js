@@ -15,12 +15,30 @@ const BACKUP_API_URLS = [
 // Dummy API - geçici çözüm olarak kullanılabilir
 const DUMMY_DATA = {
   products: [
-    { id: 1, name: 'Ürün 1', price: 100, description: 'Ürün açıklaması 1', image: 'https://picsum.photos/200/300' },
-    { id: 2, name: 'Ürün 2', price: 200, description: 'Ürün açıklaması 2', image: 'https://picsum.photos/200/300' },
-    { id: 3, name: 'Ürün 3', price: 300, description: 'Ürün açıklaması 3', image: 'https://picsum.photos/200/300' }
+    { id: 1, name: 'Siyah T-Shirt', price: 149.99, description: 'Rahat ve şık siyah t-shirt', image: 'https://picsum.photos/id/237/200/300', category: 'Giyim' },
+    { id: 2, name: 'Mavi Kot Pantolon', price: 299.99, description: 'Slim fit mavi kot pantolon', image: 'https://picsum.photos/id/238/200/300', category: 'Giyim' },
+    { id: 3, name: 'Spor Ayakkabı', price: 399.99, description: 'Konforlu spor ayakkabı', image: 'https://picsum.photos/id/239/200/300', category: 'Ayakkabı' },
+    { id: 4, name: 'Deri Cüzdan', price: 199.99, description: 'Hakiki deri cüzdan', image: 'https://picsum.photos/id/240/200/300', category: 'Aksesuar' },
+    { id: 5, name: 'Akıllı Saat', price: 1299.99, description: 'Çok fonksiyonlu akıllı saat', image: 'https://picsum.photos/id/241/200/300', category: 'Elektronik' },
+    { id: 6, name: 'Bluetooth Kulaklık', price: 499.99, description: 'Kablosuz bluetooth kulaklık', image: 'https://picsum.photos/id/242/200/300', category: 'Elektronik' },
+    { id: 7, name: 'Laptop Çantası', price: 249.99, description: 'Su geçirmez laptop çantası', image: 'https://picsum.photos/id/243/200/300', category: 'Aksesuar' },
+    { id: 8, name: 'Güneş Gözlüğü', price: 349.99, description: 'UV korumalı güneş gözlüğü', image: 'https://picsum.photos/id/244/200/300', category: 'Aksesuar' },
+    { id: 9, name: 'Kış Montu', price: 899.99, description: 'Sıcak tutan kış montu', image: 'https://picsum.photos/id/245/200/300', category: 'Giyim' },
+    { id: 10, name: 'Spor Çorap', price: 49.99, description: 'Nefes alabilen spor çorap', image: 'https://picsum.photos/id/246/200/300', category: 'Giyim' }
   ],
-  categories: ['Kategori 1', 'Kategori 2', 'Kategori 3']
+  categories: ['Giyim', 'Ayakkabı', 'Aksesuar', 'Elektronik'],
+  users: [
+    { id: 1, name: 'Test Kullanıcı', email: 'test@example.com', role: 'user' },
+    { id: 2, name: 'Admin Kullanıcı', email: 'admin@example.com', role: 'admin' }
+  ],
+  orders: [
+    { id: 1, userId: 1, products: [1, 2], totalAmount: 449.98, status: 'completed' },
+    { id: 2, userId: 1, products: [3, 4], totalAmount: 599.98, status: 'processing' }
+  ]
 };
+
+// Dummy veri kullanımını kontrol eden değişken
+const USE_DUMMY_DATA = true; // Geçici olarak dummy veri kullanımını etkinleştir
 
 // Local API instance
 export const api = axios.create({
@@ -50,6 +68,12 @@ export const backupApi = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
+    // Dummy veri kullanımı etkinse, API çağrısını engelle ve dummy veri kullan
+    if (USE_DUMMY_DATA) {
+      // Bu config'i işaretle, response interceptor'da kullanacağız
+      config.useDummyData = true;
+    }
+    
     // LocalStorage'dan token'ı al
     const token = localStorage.getItem('token')
     
@@ -71,8 +95,107 @@ api.interceptors.request.use(
 
 // Response interceptor
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Dummy veri kullanımı etkinse ve config işaretlenmişse, dummy veri döndür
+    if (USE_DUMMY_DATA && response.config.useDummyData) {
+      const url = response.config.url;
+      const method = response.config.method;
+      
+      // URL'den endpoint'i çıkar
+      const endpoint = url.split('/').pop();
+      
+      // Dummy veri döndür
+      if (url.includes('/products') && !url.includes('/categories')) {
+        logger.info('Dummy ürün verileri kullanılıyor');
+        return {
+          ...response,
+          data: { 
+            success: true, 
+            data: DUMMY_DATA.products,
+            total: DUMMY_DATA.products.length,
+            skip: 0,
+            limit: DUMMY_DATA.products.length
+          }
+        };
+      } else if (url.includes('/products/categories') || endpoint === 'categories') {
+        logger.info('Dummy kategori verileri kullanılıyor');
+        return {
+          ...response,
+          data: { 
+            success: true, 
+            data: DUMMY_DATA.categories 
+          }
+        };
+      } else if (url.includes('/users')) {
+        logger.info('Dummy kullanıcı verileri kullanılıyor');
+        return {
+          ...response,
+          data: { 
+            success: true, 
+            data: DUMMY_DATA.users 
+          }
+        };
+      } else if (url.includes('/orders')) {
+        logger.info('Dummy sipariş verileri kullanılıyor');
+        return {
+          ...response,
+          data: { 
+            success: true, 
+            data: DUMMY_DATA.orders 
+          }
+        };
+      }
+    }
+    
+    return response;
+  },
   async (error) => {
+    // Dummy veri kullanımı etkinse, hata durumunda dummy veri döndür
+    if (USE_DUMMY_DATA && error.config) {
+      const url = error.config.url;
+      
+      // URL'den endpoint'i çıkar
+      const endpoint = url.split('/').pop();
+      
+      // Dummy veri döndür
+      if (url.includes('/products') && !url.includes('/categories')) {
+        logger.info('Hata durumunda dummy ürün verileri kullanılıyor');
+        return Promise.resolve({ 
+          data: { 
+            success: true, 
+            data: DUMMY_DATA.products,
+            total: DUMMY_DATA.products.length,
+            skip: 0,
+            limit: DUMMY_DATA.products.length
+          } 
+        });
+      } else if (url.includes('/products/categories') || endpoint === 'categories') {
+        logger.info('Hata durumunda dummy kategori verileri kullanılıyor');
+        return Promise.resolve({ 
+          data: { 
+            success: true, 
+            data: DUMMY_DATA.categories 
+          } 
+        });
+      } else if (url.includes('/users')) {
+        logger.info('Hata durumunda dummy kullanıcı verileri kullanılıyor');
+        return Promise.resolve({ 
+          data: { 
+            success: true, 
+            data: DUMMY_DATA.users 
+          } 
+        });
+      } else if (url.includes('/orders')) {
+        logger.info('Hata durumunda dummy sipariş verileri kullanılıyor');
+        return Promise.resolve({ 
+          data: { 
+            success: true, 
+            data: DUMMY_DATA.orders 
+          } 
+        });
+      }
+    }
+    
     // CORS hatalarını özel olarak logla
     if (error.message && (error.message.includes('Network Error') || error.message.includes('CORS'))) {
       logger.error('CORS veya ağ hatası:', { 
@@ -100,7 +223,7 @@ api.interceptors.response.use(
           
           // Tüm API'ler başarısız olursa dummy veri kullan
           const endpoint = error.config.url.split('/').pop();
-          if (endpoint === 'products') {
+          if (endpoint === 'products' || error.config.url.includes('/products')) {
             logger.info('Dummy ürün verileri kullanılıyor');
             return Promise.resolve({ 
               data: { 
@@ -108,7 +231,7 @@ api.interceptors.response.use(
                 data: DUMMY_DATA.products 
               } 
             });
-          } else if (endpoint === 'categories') {
+          } else if (endpoint === 'categories' || error.config.url.includes('/categories')) {
             logger.info('Dummy kategori verileri kullanılıyor');
             return Promise.resolve({ 
               data: { 
