@@ -17,7 +17,11 @@ mongoose.connect(process.env.MONGODB_URI, {
     // Sunucuyu başlat
     app.listen(PORT, () => {
         logger.info(`Server ${PORT} portunda çalışıyor`);
-        logger.info(`API: http://localhost:${PORT}`);
+        // Canlı ortamda doğru API URL'sini göster
+        const apiUrl = process.env.NODE_ENV === 'production' 
+            ? 'https://modern-ecommerce-fullstack.onrender.com/api'
+            : `http://localhost:${PORT}/api`;
+        logger.info(`API: ${apiUrl}`);
     });
 })
 .catch((err) => {

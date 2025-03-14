@@ -1,9 +1,12 @@
 import axios from 'axios'
 import { logger } from '../utils'
 
+// API URL'sini çevre değişkeninden al
+const API_URL = import.meta.env.VITE_APP_API_URL || 'http://localhost:5000/api'
+
 // Local API instance
 export const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
+  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json'
   },
