@@ -4,6 +4,9 @@ import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { productAPI } from '../../services'
 
+// Dummy verileri içe aktaralım
+import { DUMMY_DATA } from '../../services/dummyData'
+
 // Debounce fonksiyonu
 function debounce(func, wait) {
   let timeout
@@ -37,7 +40,22 @@ export function SearchInput() {
   // Arama sonuçlarını önbellekten al veya API'den getir
   const { data: searchResults } = useQuery({
     queryKey: ['search', debouncedQuery],
-    queryFn: () => productAPI.search(debouncedQuery),
+    queryFn: () => {
+      // Dummy verileri kullan
+      if (debouncedQuery.length > 2) {
+        const results = DUMMY_DATA.products.filter(product => 
+          product.name.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+          product.description.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+          product.category.toLowerCase().includes(debouncedQuery.toLowerCase())
+        );
+        
+        return {
+          success: true,
+          data: results
+        };
+      }
+      return { success: true, data: [] };
+    },
     enabled: debouncedQuery.length > 2,
     staleTime: 1000 * 60 * 5, // 5 dakika önbellek
     cacheTime: 1000 * 60 * 30, // 30 dakika cache
@@ -51,7 +69,19 @@ export function SearchInput() {
       const nextQuery = currentQuery + suffix
       queryClient.prefetchQuery({
         queryKey: ['search', nextQuery],
-        queryFn: () => productAPI.search(nextQuery),
+        queryFn: () => {
+          // Dummy verileri kullan
+          const results = DUMMY_DATA.products.filter(product => 
+            product.name.toLowerCase().includes(nextQuery.toLowerCase()) ||
+            product.description.toLowerCase().includes(nextQuery.toLowerCase()) ||
+            product.category.toLowerCase().includes(nextQuery.toLowerCase())
+          );
+          
+          return {
+            success: true,
+            data: results
+          };
+        },
         staleTime: 1000 * 60 * 5,
       })
     })

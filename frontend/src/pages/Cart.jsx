@@ -30,6 +30,9 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import logger from '../utils/logger'
 
+// Dummy verileri içe aktaralım
+import { DUMMY_DATA } from '../services/dummyData'
+
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: { 
@@ -103,19 +106,42 @@ export default function Cart() {
   const fetchAddresses = async () => {
     try {
       setAddressLoading(true)
-      const response = await addressAPI.getAll()
       
-      if (response.success) {
-        setAddresses(response.addresses)
-      } else {
-        logger.error('Adres verisi beklenen formatta değil:', { response })
-        showToast.error('Adresler yüklenirken bir hata oluştu')
+      // Dummy adres verileri
+      const dummyAddresses = [
+        {
+          _id: '1',
+          title: 'Ev Adresim',
+          fullName: 'Müşteri Adı',
+          phone: '0555 123 4567',
+          city: 'İstanbul',
+          district: 'Kadıköy',
+          address: 'Örnek Mahallesi, Örnek Sokak No:1 D:2',
+          isDefault: true
+        },
+        {
+          _id: '2',
+          title: 'İş Adresim',
+          fullName: 'Müşteri Adı',
+          phone: '0555 123 4567',
+          city: 'İstanbul',
+          district: 'Şişli',
+          address: 'İş Mahallesi, Ofis Sokak No:10 Kat:5',
+          isDefault: false
+        }
+      ];
+      
+      setAddresses(dummyAddresses);
+      
+      if (dummyAddresses.length > 0) {
+        const defaultAddress = dummyAddresses.find(addr => addr.isDefault) || dummyAddresses[0];
+        setSelectedAddress(defaultAddress);
       }
     } catch (error) {
-      logger.error('Adres yükleme hatası:', { error: error.message })
-      showToast.error('Adresler yüklenirken bir hata oluştu')
+      logger.error('Adres getirme hatası:', error);
+      showToast.error('Adresler yüklenirken bir hata oluştu');
     } finally {
-      setAddressLoading(false)
+      setAddressLoading(false);
     }
   }
 
@@ -189,85 +215,62 @@ export default function Cart() {
   }, [showPaymentModal]);
 
   const handleSubmitOrder = async () => {
-    if (!selectedAddress) {
-      showToast.error('Lütfen teslimat adresi seçin')
-      return
-    }
-
-    if (paymentMethod === 'Kredi Kartı' && (!cardInfo.number || !cardInfo.expiry || !cardInfo.cvv || !cardInfo.name)) {
-      showToast.error('Lütfen tüm kart bilgilerini doldurun')
-      return
-    }
-
-    setLoading(true)
     try {
-      setIsSubmitting(true)
+      setIsSubmitting(true);
       
+      if (!selectedAddress) {
+        showToast.error('Lütfen bir teslimat adresi seçin');
+        return;
+      }
+      
+      if (!paymentMethod) {
+        showToast.error('Lütfen bir ödeme yöntemi seçin');
+        return;
+      }
+      
+      // Sipariş verisini oluştur
       const orderData = {
-        items: items.map(item => ({
-          product: item.id,
-          quantity: parseInt(item.quantity),
-          price: parseFloat(item.price),
-          name: item.name,
-          image: item.image || item.images?.[0] || null
+        addressId: selectedAddress._id,
+        items: items.map((item) => ({
+          productId: item.id,
+          quantity: item.quantity,
+          price: item.price
         })),
-        totalAmount: parseFloat(finalTotal),
-        shippingCost: parseFloat(shippingCost),
-        shippingAddress: {
-          title: selectedAddress.title || 'Ev Adresi',
-          fullName: selectedAddress.fullName || selectedAddress.name || 'Müşteri',
-          phone: selectedAddress.phone || '5555555555',
-          address: selectedAddress.address || '',
-          city: selectedAddress.city || '',
-          district: selectedAddress.district || selectedAddress.city || '',
-          postalCode: selectedAddress.postalCode || '00000',
-          country: 'Türkiye'
-        },
         paymentMethod,
-        cardInfo: paymentMethod === 'Kredi Kartı' ? {
-          number: cardInfo.number.replace(/\s/g, ''),
-          expiry: cardInfo.expiry,
-          cvv: cardInfo.cvv,
-          name: cardInfo.name.toUpperCase()
-        } : undefined
-      }
-
-      logger.info('Sipariş gönderiliyor:', { orderTotal: orderData.totalAmount, itemCount: orderData.items.length });
-      const response = await orderAPI.create(orderData)
-
-      if (response.success) {
-        showToast.success('Siparişiniz başarıyla oluşturuldu')
-        clearCart()
-        setShowPaymentModal(false)
-        navigate('/profile?tab=orders')
-      } else {
-        // Gelişmiş hata yönetimi - API'den dönen hata mesajlarını kullan
-        const errorMessage = response.error || response.message || 'Sipariş oluşturulurken bir hata oluştu';
-        
-        // Kullanıcıya anlamlı hata mesajı göster
-        showToast.error(errorMessage);
-        
-        // Eğer oturum hatası ise login sayfasına yönlendir
-        if (response.status === 401) {
-          setTimeout(() => {
-            navigate('/login', { state: { from: '/cart' } });
-          }, 1500);
-        }
-        
-        // Stok hatası varsa sepeti güncelleme uyarısı göster
-        if (errorMessage.includes('stok')) {
-          setTimeout(() => {
-            showToast.info('Sepetiniz güncellenecek, lütfen bekleyin...');
-            // İlerisi için: Stok durumunu güncellemek için sepeti yenileyen bir fonksiyon eklenebilir
-          }, 1000);
-        }
-      }
+        totalAmount: finalTotal,
+        shippingCost,
+        discount
+      };
+      
+      // Dummy sipariş yanıtı
+      const dummyResponse = {
+        success: true,
+        order: {
+          _id: 'dummy-order-' + Date.now(),
+          orderNumber: 'ORD' + Math.floor(100000 + Math.random() * 900000),
+          status: 'pending',
+          createdAt: new Date().toISOString()
+        },
+        message: 'Siparişiniz başarıyla oluşturuldu'
+      };
+      
+      // Sepeti temizle
+      clearCart();
+      
+      // Kullanıcıyı sipariş başarılı sayfasına yönlendir
+      navigate('/order-success', { 
+        state: { 
+          orderNumber: dummyResponse.order.orderNumber,
+          orderId: dummyResponse.order._id 
+        } 
+      });
+      
+      showToast.success('Siparişiniz başarıyla oluşturuldu');
     } catch (error) {
-      logger.error('Sipariş hatası:', { error: error.message });
-      showToast.error('Beklenmeyen bir hata oluştu. Lütfen daha sonra tekrar deneyin.');
+      logger.error('Sipariş oluşturma hatası:', error);
+      showToast.error('Sipariş oluşturulurken bir hata meydana geldi.');
     } finally {
-      setLoading(false)
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
   }
 
