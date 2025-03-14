@@ -9,24 +9,10 @@ require('dotenv').config();
 
 const app = express();
 
-// CORS ayarları - güçlendirilmiş
+// CORS ayarları - en güçlü hali
 app.use(cors({
-    origin: function(origin, callback) {
-        const allowedOrigins = [
-            'https://e-commerce-mernstack.netlify.app',
-            'http://localhost:3000',
-            'http://localhost:5173',
-            'https://modern-full-stack-e-ticaret.netlify.app'
-        ];
-        // origin olmayan isteklere (Postman gibi) veya izin verilen originlere izin ver
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-            callback(null, true);
-        } else {
-            logger.warn(`CORS hatası: ${origin} kaynağından erişim engellendi`);
-            callback(new Error('CORS politikası tarafından engellendi'), false);
-        }
-    },
-    credentials: true,
+    origin: '*', // Tüm originlere izin ver
+    credentials: false, // withCredentials false olduğu için bunu da false yapıyoruz
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
@@ -39,7 +25,7 @@ app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Credentials', 'false');
     
     // OPTIONS isteklerini hemen yanıtla
     if (req.method === 'OPTIONS') {
