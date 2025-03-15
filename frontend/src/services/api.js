@@ -1,14 +1,11 @@
 import axios from 'axios'
 import { logger } from '../utils'
 
-// Backend API URL - render.com'daki URL, boşsa dummy veri kullanılır
-const BACKEND_API_URL = 'https://modern-ecommerce-fullstack.onrender.com/api';
+// API URL - backend URL'i
+const API_URL = 'https://modern-ecommerce-fullstack.onrender.com/api';
 
-// Dummy veri kullanımını aktif ediyoruz geçici olarak
-const USE_DUMMY_DATA = true;
-
-// API için base URL
-const API_URL = BACKEND_API_URL || 'https://api.example.com';
+// Dummy veri kullanımını kapatıyoruz
+const USE_DUMMY_DATA = false;
 
 // API instance oluşturma
 export const api = axios.create({
@@ -38,15 +35,6 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`
     }
     
-    // Eğer dummy veri kullanılacaksa, isteği kesip dummy veri döndürme
-    if (USE_DUMMY_DATA && config.method === 'get') {
-      // İstek URL'inde yapılacak işleme göre uygun dummy veriyi belirleme
-      const dummyResponse = getDummyResponseForUrl(config.url);
-      
-      // Axios'un promise zincirini kırarak dummy veriyi döndürme
-      config._dummyData = dummyResponse;
-    }
-    
     return config
   },
   (error) => {
@@ -58,18 +46,6 @@ api.interceptors.request.use(
 // Response interceptor
 api.interceptors.response.use(
   (response) => {
-    // Eğer dummy veri varsa onu kullan
-    if (response.config._dummyData) {
-      logger.info('Dummy veri döndürülüyor:', response.config.url);
-      return {
-        data: response.config._dummyData,
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: response.config
-      };
-    }
-    
     logger.info(`API yanıtı alındı: ${response.status} ${response.config.url}`);
     return response;
   },
@@ -78,20 +54,6 @@ api.interceptors.response.use(
       url: error.config?.url,
       method: error.config?.method
     });
-    
-    // Eğer dummy veri kullanımı aktifse ve bir hata oluşmuşsa, dummy veri döndür
-    if (USE_DUMMY_DATA && error.config) {
-      logger.info('Hata sonrası dummy veri döndürülüyor:', error.config.url);
-      const dummyResponse = getDummyResponseForUrl(error.config.url);
-      
-      return Promise.resolve({
-        data: dummyResponse,
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: error.config
-      });
-    }
     
     // 401 hatası durumunda logout
     if (error.response?.status === 401) {
@@ -102,279 +64,6 @@ api.interceptors.response.use(
     return Promise.reject(error)
   }
 )
-
-// DUMMY DATA
-const DUMMY_DATA = {
-  products: [
-    {
-      _id: '1',
-      name: 'Siyah T-Shirt',
-      price: 149.99,
-      description: 'Rahat ve şık siyah t-shirt',
-      image: 'https://picsum.photos/id/237/300/300',
-      category: 'Giyim',
-      quantity: 50,
-      createdAt: '2023-01-01'
-    },
-    {
-      _id: '2',
-      name: 'Mavi Kot Pantolon',
-      price: 299.99,
-      description: 'Klasik kesim mavi kot pantolon',
-      image: 'https://picsum.photos/id/26/300/300',
-      category: 'Giyim',
-      quantity: 30,
-      createdAt: '2023-01-02'
-    },
-    {
-      _id: '3',
-      name: 'Spor Ayakkabı',
-      price: 399.99,
-      description: 'Hafif ve konforlu spor ayakkabı',
-      image: 'https://picsum.photos/id/21/300/300',
-      category: 'Ayakkabı',
-      quantity: 20,
-      createdAt: '2023-01-03'
-    },
-    {
-      _id: '4',
-      name: 'Deri Cüzdan',
-      price: 199.99,
-      description: 'Hakiki deri el yapımı cüzdan',
-      image: 'https://picsum.photos/id/37/300/300',
-      category: 'Aksesuar',
-      quantity: 15,
-      createdAt: '2023-01-04'
-    },
-    {
-      _id: '5',
-      name: 'Akıllı Saat',
-      price: 1299.99,
-      description: 'Su geçirmez GPS özellikli akıllı saat',
-      image: 'https://picsum.photos/id/111/300/300',
-      category: 'Elektronik',
-      quantity: 10,
-      createdAt: '2023-01-05'
-    },
-    {
-      _id: '6',
-      name: 'Bluetooth Kulaklık',
-      price: 499.99,
-      description: 'Gürültü önleyici kablosuz kulaklık',
-      image: 'https://picsum.photos/id/250/300/300',
-      category: 'Elektronik',
-      quantity: 25,
-      createdAt: '2023-01-06'
-    },
-    {
-      _id: '7',
-      name: 'Outdoor Ceket',
-      price: 899.99,
-      description: 'Suya ve rüzgara dayanıklı dağcı ceketi',
-      image: 'https://picsum.photos/id/248/300/300',
-      category: 'Giyim',
-      quantity: 8,
-      createdAt: '2023-01-07'
-    },
-    {
-      _id: '8',
-      name: 'Yüzme Gözlüğü',
-      price: 129.99,
-      description: 'Profesyonel anti-fog yüzme gözlüğü',
-      image: 'https://picsum.photos/id/106/300/300',
-      category: 'Spor',
-      quantity: 30,
-      createdAt: '2023-01-08'
-    },
-    {
-      _id: '9',
-      name: 'Kış Montu',
-      price: 1499.99,
-      description: 'Ekstra kalın içi polar kaplı kış montu',
-      image: 'https://picsum.photos/id/96/300/300',
-      category: 'Giyim',
-      quantity: 12,
-      createdAt: '2023-01-09'
-    },
-    {
-      _id: '10',
-      name: 'Kahve Makinesi',
-      price: 2999.99,
-      description: 'Tam otomatik espresso ve cappuccino makinesi',
-      image: 'https://picsum.photos/id/225/300/300',
-      category: 'Ev Aletleri',
-      quantity: 5,
-      createdAt: '2023-01-10'
-    }
-  ],
-  categories: ['Giyim', 'Ayakkabı', 'Elektronik', 'Aksesuar', 'Spor', 'Ev Aletleri'],
-  users: [
-    {
-      _id: '101',
-      name: 'Test Kullanıcı',
-      email: 'test@example.com',
-      role: 'user'
-    },
-    {
-      _id: '102',
-      name: 'Admin Kullanıcı',
-      email: 'admin@example.com',
-      role: 'admin'
-    }
-  ],
-  orders: [
-    {
-      _id: '1001',
-      user: '101',
-      products: [
-        { product: '1', quantity: 2, price: 149.99 },
-        { product: '3', quantity: 1, price: 399.99 }
-      ],
-      totalAmount: 699.97,
-      status: 'completed',
-      createdAt: '2023-01-15'
-    }
-  ],
-  addresses: [
-    {
-      _id: '10001',
-      user: '101',
-      fullName: 'Test Kullanıcı',
-      phone: '5551234567',
-      address: 'Test Mahallesi, Örnek Sokak No:1',
-      city: 'İstanbul',
-      postalCode: '34000',
-      country: 'Türkiye',
-      isDefault: true
-    }
-  ],
-  settings: {
-    siteName: 'E-Commerce',
-    logo: 'logo.png',
-    supportEmail: 'support@example.com',
-    supportPhone: '5551234567'
-  }
-}
-
-// URL'e göre dummy veri döndürme fonksiyonu
-function getDummyResponseForUrl(url) {
-  // URL'i parsing
-  if (!url) return { success: false, message: 'URL not provided' };
-  
-  // /products endpoint'i
-  if (url.match(/^\/products\/?$/)) {
-    return { 
-      success: true, 
-      data: DUMMY_DATA.products,
-      total: DUMMY_DATA.products.length,
-      limit: 10,
-      skip: 0
-    };
-  }
-  
-  // /products/:id endpoint'i
-  const productDetailMatch = url.match(/^\/products\/([^/]+)$/);
-  if (productDetailMatch) {
-    const productId = productDetailMatch[1];
-    const product = DUMMY_DATA.products.find(p => p._id === productId);
-    
-    if (product) {
-      return { success: true, data: product };
-    }
-    return { success: false, message: 'Product not found' };
-  }
-  
-  // /products/search endpoint'i  
-  if (url.startsWith('/products/search')) {
-    return { 
-      success: true, 
-      data: DUMMY_DATA.products.slice(0, 3),
-      total: 3
-    };
-  }
-  
-  // /products/categories endpoint'i
-  if (url === '/products/categories') {
-    return { 
-      success: true, 
-      data: DUMMY_DATA.categories.map(name => ({ _id: name.toLowerCase(), name }))
-    };
-  }
-  
-  // /products/category/:category endpoint'i
-  const categoryMatch = url.match(/^\/products\/category\/([^/]+)/);
-  if (categoryMatch) {
-    const categoryName = categoryMatch[1];
-    const decodedCategory = decodeURIComponent(categoryName);
-    
-    // Kategori ismini normalize et
-    const normalizedRequestedCategory = decodedCategory.toLowerCase().trim();
-    
-    // Kategoriye göre filtreleme yap
-    const filteredProducts = DUMMY_DATA.products.filter(product => {
-      const normalizedProductCategory = product.category.toLowerCase().trim();
-      return normalizedProductCategory === normalizedRequestedCategory ||
-             normalizedProductCategory.replace(/ /g, '-') === normalizedRequestedCategory;
-    });
-    
-    return { 
-      success: true, 
-      data: filteredProducts,
-      total: filteredProducts.length,
-      limit: 10,
-      skip: 0
-    };
-  }
-  
-  // /users endpoint'i
-  if (url.match(/^\/users\/?$/)) {
-    return { 
-      success: true, 
-      data: { 
-        users: DUMMY_DATA.users,
-        pagination: { total: DUMMY_DATA.users.length, pages: 1 }
-      }
-    };
-  }
-  
-  // /orders endpoint'i
-  if (url.match(/^\/orders\/?$/)) {
-    return { 
-      success: true, 
-      data: DUMMY_DATA.orders
-    };
-  }
-  
-  // /addresses endpoint'i
-  if (url.match(/^\/addresses\/?$/)) {
-    return { 
-      success: true, 
-      data: DUMMY_DATA.addresses
-    };
-  }
-  
-  // /settings endpoint'i
-  if (url.match(/^\/settings\/?$/)) {
-    return { 
-      success: true, 
-      data: DUMMY_DATA.settings
-    };
-  }
-  
-  // /users/profile endpoint'i
-  if (url === '/users/profile') {
-    return { 
-      success: true, 
-      data: DUMMY_DATA.users[0]
-    };
-  }
-  
-  // Eşleşme yoksa genel bir yanıt döndür
-  return { 
-    success: false, 
-    message: 'Endpoint not found or not supported in dummy mode' 
-  };
-}
 
 // Product endpoints
 export const productAPI = {
