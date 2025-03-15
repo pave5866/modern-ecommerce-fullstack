@@ -1,65 +1,51 @@
 import axios from 'axios'
 import { logger } from '../utils'
 
-// API URL - sabit URL kullanıyoruz
-const API_URL = 'https://modern-ecommerce-fullstack.onrender.com/api';
+// Backend API URL - render.com'daki URL, boşsa dummy veri kullanılır
+const BACKEND_API_URL = 'https://modern-ecommerce-fullstack.onrender.com/api';
 
-// Alternatif API URL'leri - CORS sorunu durumunda kullanılacak 
-const BACKUP_API_URLS = [
-  'https://modern-ecommerce-fullstack.onrender.com/api',
-  'https://cors-anywhere.herokuapp.com/https://modern-ecommerce-fullstack.onrender.com/api',
-  'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://modern-ecommerce-fullstack.onrender.com/api')
-];
+// Dummy veri kullanımını aktif ediyoruz geçici olarak
+const USE_DUMMY_DATA = true;
 
-// Dummy veri kullanımını tamamen kaldırıyoruz
-const USE_DUMMY_DATA = false; // Tamamen devre dışı bırakıldı
+// API için base URL
+const API_URL = BACKEND_API_URL || 'https://api.example.com';
 
-// API instance - headers ve ayarlarla
+// API instance oluşturma
 export const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
     'X-Requested-With': 'XMLHttpRequest',
-    'Access-Control-Allow-Origin': '*' // CORS için ön tarafta da header
-  },
-  withCredentials: false, // CORS sorunlarını önlemek için false yapıldı
-  timeout: 30000 // 30 saniye timeout (daha uzun süre verdik)
-})
-
-// Yedek API instance - CORS sorunu durumunda kullanılacak
-let currentBackupUrlIndex = 0;
-export const backupApi = axios.create({
-  baseURL: BACKUP_API_URLS[0],
-  headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    'X-Requested-With': 'XMLHttpRequest',
     'Access-Control-Allow-Origin': '*'
   },
-  withCredentials: false,
-  timeout: 30000
-});
+  withCredentials: false, // CORS sorunları için false
+  timeout: 30000 // 30 saniye timeout
+})
 
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
-    // API çağrısını loglama
+    // İsteği loglama
     logger.info(`API isteği yapılıyor: ${config.method?.toUpperCase()} ${config.url}`, { 
-      baseURL: API_URL,
+      baseURL: config.baseURL,
       headers: config.headers
     });
     
-    // LocalStorage'dan token'ı al
+    // LocalStorage'dan token alma
     const token = localStorage.getItem('token')
-    
-    // Token varsa header'a ekle
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
     
-    // CORS sorunlarını önlemek için ek header'lar
-    config.headers['Access-Control-Allow-Origin'] = '*';
+    // Eğer dummy veri kullanılacaksa, isteği kesip dummy veri döndürme
+    if (USE_DUMMY_DATA && config.method === 'get') {
+      // İstek URL'inde yapılacak işleme göre uygun dummy veriyi belirleme
+      const dummyResponse = getDummyResponseForUrl(config.url);
+      
+      // Axios'un promise zincirini kırarak dummy veriyi döndürme
+      config._dummyData = dummyResponse;
+    }
     
     return config
   },
@@ -72,49 +58,323 @@ api.interceptors.request.use(
 // Response interceptor
 api.interceptors.response.use(
   (response) => {
+    // Eğer dummy veri varsa onu kullan
+    if (response.config._dummyData) {
+      logger.info('Dummy veri döndürülüyor:', response.config.url);
+      return {
+        data: response.config._dummyData,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: response.config
+      };
+    }
+    
     logger.info(`API yanıtı alındı: ${response.status} ${response.config.url}`);
     return response;
   },
   async (error) => {
-    // İstek hatasını logla
-    logger.error(`API hata yanıtı alındı: ${error.message}`, { 
+    logger.error(`API hata yanıtı: ${error.message}`, {
       url: error.config?.url,
-      method: error.config?.method,
-      status: error.response?.status
+      method: error.config?.method
     });
     
-    // CORS hatalarını özel olarak logla
-    if (error.message && (error.message.includes('Network Error') || error.message.includes('CORS'))) {
-      logger.error('CORS veya ağ hatası:', error.message, 'URL:', error.config?.url);
+    // Eğer dummy veri kullanımı aktifse ve bir hata oluşmuşsa, dummy veri döndür
+    if (USE_DUMMY_DATA && error.config) {
+      logger.info('Hata sonrası dummy veri döndürülüyor:', error.config.url);
+      const dummyResponse = getDummyResponseForUrl(error.config.url);
       
-      // CORS hatası durumunda yedek API'yi dene
-      if (error.config) {
-        try {
-          // Bir sonraki yedek URL'yi kullan
-          currentBackupUrlIndex = (currentBackupUrlIndex + 1) % BACKUP_API_URLS.length;
-          backupApi.defaults.baseURL = BACKUP_API_URLS[currentBackupUrlIndex];
-          
-          logger.info(`Yedek API URL'sine geçiliyor: ${backupApi.defaults.baseURL}`);
-          
-          // Orijinal isteği yedek API ile tekrar dene
-          const retryConfig = { ...error.config };
-          retryConfig.baseURL = backupApi.defaults.baseURL;
-          
-          return axios(retryConfig);
-        } catch (retryError) {
-          logger.error('Yedek API ile de istek başarısız:', retryError.message);
-          return Promise.reject(retryError);
-        }
-      }
+      return Promise.resolve({
+        data: dummyResponse,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: error.config
+      });
     }
     
+    // 401 hatası durumunda logout
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
       window.location.href = '/login'
     }
+    
     return Promise.reject(error)
   }
 )
+
+// DUMMY DATA
+const DUMMY_DATA = {
+  products: [
+    {
+      _id: '1',
+      name: 'Siyah T-Shirt',
+      price: 149.99,
+      description: 'Rahat ve şık siyah t-shirt',
+      image: 'https://picsum.photos/id/237/300/300',
+      category: 'Giyim',
+      quantity: 50,
+      createdAt: '2023-01-01'
+    },
+    {
+      _id: '2',
+      name: 'Mavi Kot Pantolon',
+      price: 299.99,
+      description: 'Klasik kesim mavi kot pantolon',
+      image: 'https://picsum.photos/id/26/300/300',
+      category: 'Giyim',
+      quantity: 30,
+      createdAt: '2023-01-02'
+    },
+    {
+      _id: '3',
+      name: 'Spor Ayakkabı',
+      price: 399.99,
+      description: 'Hafif ve konforlu spor ayakkabı',
+      image: 'https://picsum.photos/id/21/300/300',
+      category: 'Ayakkabı',
+      quantity: 20,
+      createdAt: '2023-01-03'
+    },
+    {
+      _id: '4',
+      name: 'Deri Cüzdan',
+      price: 199.99,
+      description: 'Hakiki deri el yapımı cüzdan',
+      image: 'https://picsum.photos/id/37/300/300',
+      category: 'Aksesuar',
+      quantity: 15,
+      createdAt: '2023-01-04'
+    },
+    {
+      _id: '5',
+      name: 'Akıllı Saat',
+      price: 1299.99,
+      description: 'Su geçirmez GPS özellikli akıllı saat',
+      image: 'https://picsum.photos/id/111/300/300',
+      category: 'Elektronik',
+      quantity: 10,
+      createdAt: '2023-01-05'
+    },
+    {
+      _id: '6',
+      name: 'Bluetooth Kulaklık',
+      price: 499.99,
+      description: 'Gürültü önleyici kablosuz kulaklık',
+      image: 'https://picsum.photos/id/250/300/300',
+      category: 'Elektronik',
+      quantity: 25,
+      createdAt: '2023-01-06'
+    },
+    {
+      _id: '7',
+      name: 'Outdoor Ceket',
+      price: 899.99,
+      description: 'Suya ve rüzgara dayanıklı dağcı ceketi',
+      image: 'https://picsum.photos/id/248/300/300',
+      category: 'Giyim',
+      quantity: 8,
+      createdAt: '2023-01-07'
+    },
+    {
+      _id: '8',
+      name: 'Yüzme Gözlüğü',
+      price: 129.99,
+      description: 'Profesyonel anti-fog yüzme gözlüğü',
+      image: 'https://picsum.photos/id/106/300/300',
+      category: 'Spor',
+      quantity: 30,
+      createdAt: '2023-01-08'
+    },
+    {
+      _id: '9',
+      name: 'Kış Montu',
+      price: 1499.99,
+      description: 'Ekstra kalın içi polar kaplı kış montu',
+      image: 'https://picsum.photos/id/96/300/300',
+      category: 'Giyim',
+      quantity: 12,
+      createdAt: '2023-01-09'
+    },
+    {
+      _id: '10',
+      name: 'Kahve Makinesi',
+      price: 2999.99,
+      description: 'Tam otomatik espresso ve cappuccino makinesi',
+      image: 'https://picsum.photos/id/225/300/300',
+      category: 'Ev Aletleri',
+      quantity: 5,
+      createdAt: '2023-01-10'
+    }
+  ],
+  categories: ['Giyim', 'Ayakkabı', 'Elektronik', 'Aksesuar', 'Spor', 'Ev Aletleri'],
+  users: [
+    {
+      _id: '101',
+      name: 'Test Kullanıcı',
+      email: 'test@example.com',
+      role: 'user'
+    },
+    {
+      _id: '102',
+      name: 'Admin Kullanıcı',
+      email: 'admin@example.com',
+      role: 'admin'
+    }
+  ],
+  orders: [
+    {
+      _id: '1001',
+      user: '101',
+      products: [
+        { product: '1', quantity: 2, price: 149.99 },
+        { product: '3', quantity: 1, price: 399.99 }
+      ],
+      totalAmount: 699.97,
+      status: 'completed',
+      createdAt: '2023-01-15'
+    }
+  ],
+  addresses: [
+    {
+      _id: '10001',
+      user: '101',
+      fullName: 'Test Kullanıcı',
+      phone: '5551234567',
+      address: 'Test Mahallesi, Örnek Sokak No:1',
+      city: 'İstanbul',
+      postalCode: '34000',
+      country: 'Türkiye',
+      isDefault: true
+    }
+  ],
+  settings: {
+    siteName: 'E-Commerce',
+    logo: 'logo.png',
+    supportEmail: 'support@example.com',
+    supportPhone: '5551234567'
+  }
+}
+
+// URL'e göre dummy veri döndürme fonksiyonu
+function getDummyResponseForUrl(url) {
+  // URL'i parsing
+  if (!url) return { success: false, message: 'URL not provided' };
+  
+  // /products endpoint'i
+  if (url.match(/^\/products\/?$/)) {
+    return { 
+      success: true, 
+      data: DUMMY_DATA.products,
+      total: DUMMY_DATA.products.length,
+      limit: 10,
+      skip: 0
+    };
+  }
+  
+  // /products/:id endpoint'i
+  const productDetailMatch = url.match(/^\/products\/([^/]+)$/);
+  if (productDetailMatch) {
+    const productId = productDetailMatch[1];
+    const product = DUMMY_DATA.products.find(p => p._id === productId);
+    
+    if (product) {
+      return { success: true, data: product };
+    }
+    return { success: false, message: 'Product not found' };
+  }
+  
+  // /products/search endpoint'i  
+  if (url.startsWith('/products/search')) {
+    return { 
+      success: true, 
+      data: DUMMY_DATA.products.slice(0, 3),
+      total: 3
+    };
+  }
+  
+  // /products/categories endpoint'i
+  if (url === '/products/categories') {
+    return { 
+      success: true, 
+      data: DUMMY_DATA.categories.map(name => ({ _id: name.toLowerCase(), name }))
+    };
+  }
+  
+  // /products/category/:category endpoint'i
+  const categoryMatch = url.match(/^\/products\/category\/([^/]+)/);
+  if (categoryMatch) {
+    const categoryName = categoryMatch[1];
+    const decodedCategory = decodeURIComponent(categoryName);
+    
+    // Kategori ismini normalize et
+    const normalizedRequestedCategory = decodedCategory.toLowerCase().trim();
+    
+    // Kategoriye göre filtreleme yap
+    const filteredProducts = DUMMY_DATA.products.filter(product => {
+      const normalizedProductCategory = product.category.toLowerCase().trim();
+      return normalizedProductCategory === normalizedRequestedCategory ||
+             normalizedProductCategory.replace(/ /g, '-') === normalizedRequestedCategory;
+    });
+    
+    return { 
+      success: true, 
+      data: filteredProducts,
+      total: filteredProducts.length,
+      limit: 10,
+      skip: 0
+    };
+  }
+  
+  // /users endpoint'i
+  if (url.match(/^\/users\/?$/)) {
+    return { 
+      success: true, 
+      data: { 
+        users: DUMMY_DATA.users,
+        pagination: { total: DUMMY_DATA.users.length, pages: 1 }
+      }
+    };
+  }
+  
+  // /orders endpoint'i
+  if (url.match(/^\/orders\/?$/)) {
+    return { 
+      success: true, 
+      data: DUMMY_DATA.orders
+    };
+  }
+  
+  // /addresses endpoint'i
+  if (url.match(/^\/addresses\/?$/)) {
+    return { 
+      success: true, 
+      data: DUMMY_DATA.addresses
+    };
+  }
+  
+  // /settings endpoint'i
+  if (url.match(/^\/settings\/?$/)) {
+    return { 
+      success: true, 
+      data: DUMMY_DATA.settings
+    };
+  }
+  
+  // /users/profile endpoint'i
+  if (url === '/users/profile') {
+    return { 
+      success: true, 
+      data: DUMMY_DATA.users[0]
+    };
+  }
+  
+  // Eşleşme yoksa genel bir yanıt döndür
+  return { 
+    success: false, 
+    message: 'Endpoint not found or not supported in dummy mode' 
+  };
+}
 
 // Product endpoints
 export const productAPI = {
@@ -217,46 +477,11 @@ export const productAPI = {
         return { success: false, data: [], error: 'Kategori belirtilmedi' };
       }
       
-      // URL'de kategori adını kullanırken dikkatli olalım 
-      // Bazen kategori adı, bazen slug değeri gelebilir
       const categoryParam = encodeURIComponent(category);
       
       const response = await api.get(`/products/category/${categoryParam}`, {
         params: { limit, skip }
       });
-      
-      // Eğer sonuç boş gelirse ve bu bir slug ise, direkt API'den tüm ürünleri getirip 
-      // kategori filtresini client-side yapalım (hata durumuna karşı)
-      if (response?.data?.success && (!response.data.data || response.data.data.length === 0)) {
-        // Veri yoksa tüm ürünleri getirip filtrelemeyi deneyelim
-        const allProductsResponse = await api.get('/products', {
-          params: { limit: 100, skip: 0 } // Daha fazla ürün almaya çalışalım
-        });
-        
-        if (allProductsResponse?.data?.success && allProductsResponse.data.data) {
-          // Client-side filtreleme yapalım - hem orijinal adı hem de slug'ı deneyelim
-          const filteredProducts = allProductsResponse.data.data.filter(product => {
-            if (!product.category) return false;
-            
-            const productCategory = product.category.toLowerCase().trim();
-            const searchCategory = category.toLowerCase().trim();
-            
-            // Direk eşleşme ya da slug eşleşmesi kontrolü
-            return productCategory === searchCategory || 
-                   productCategory.replace(/ /g, '-') === searchCategory;
-          });
-          
-          if (filteredProducts.length > 0) {
-            return {
-              success: true,
-              data: filteredProducts,
-              skip,
-              limit,
-              total: filteredProducts.length
-            };
-          }
-        }
-      }
       
       return {
         success: response?.data?.success || false,
@@ -290,9 +515,8 @@ export const authAPI = {
 export const orderAPI = {
   create: async (orderData) => {
     try {
-      // Sipariş göndermeden önce adres kontrolü yap
       if (!orderData.shippingAddress || !orderData.shippingAddress.fullName) {
-        logger.error('Sipariş oluşturma hatası:', { error: 'shippingAddress.fullName alanı gerekli', orderTotal: orderData.totalAmount, items: orderData.items.length });
+        logger.error('Sipariş oluşturma hatası:', { error: 'shippingAddress.fullName alanı gerekli' });
         return {
           success: false,
           error: 'Teslimat adresi bilgileriniz eksik. Lütfen adres bilgilerinizi kontrol edin.'
@@ -310,9 +534,7 @@ export const orderAPI = {
       logger.error('Sipariş oluşturma hatası:', { 
         status: response?.status, 
         error: response?.data?.error, 
-        message: response?.data?.message,
-        orderTotal: orderData.totalAmount, 
-        items: orderData.items.length 
+        message: response?.data?.message
       });
       
       return {
@@ -324,9 +546,7 @@ export const orderAPI = {
       logger.error('Sipariş oluşturma hatası:', { 
         error: error.message, 
         status: error.response?.status,
-        data: error.response?.data,
-        orderTotal: orderData.totalAmount, 
-        items: orderData.items.length 
+        data: error.response?.data
       });
       
       return {
@@ -480,7 +700,6 @@ export const userAPI = {
   getAll: async (params) => {
     try {
       const paramStr = params ? params.toString() : '';
-      // Önbellek header'larını kaldırıp sadece API çağrısına odaklanıyoruz
       const response = await api.get(`/users${paramStr ? `?${paramStr}` : ''}`);
       
       if (response?.data?.success) {
@@ -511,10 +730,8 @@ export const userAPI = {
   deleteUser: (id) => api.delete(`/users/${id}`),
   updateRole: async (userId, role) => {
     try {
-      // API çağrısı daha güçlü hata yakalama ile
       const response = await api.put(`/users/${userId}`, { role });
       
-      // Başarılı API yanıtı
       if (response?.data?.success) {
         return { 
           success: true, 
@@ -523,17 +740,14 @@ export const userAPI = {
         };
       }
       
-      // Başarısız API yanıtı - detaylı hata mesajı
       return {
         success: false,
         error: response?.data?.message || 'Rol güncelleme işlemi başarısız oldu'
       };
     } catch (error) {
-      // Hata detaylarını göster
       const errorMessage = error?.response?.data?.message || error.message || 'Rol güncelleme sırasında bir hata oluştu';
-      logger.error('Rol güncelleme hatası:', { errorDetails: error.toString(), errorMessage });
+      logger.error('Rol güncelleme hatası:', { errorMessage });
       
-      // Hata yanıtını döndür
       return {
         success: false,
         error: errorMessage
@@ -541,29 +755,6 @@ export const userAPI = {
     }
   },
   
-  // Önbelleği temizleme fonksiyonu (client-side)
-  invalidateCache: async () => {
-    try {
-      logger.info('Client-side önbellek temizleniyor...');
-      
-      // Tarayıcı önbelleğini temizle
-      if ('caches' in window) {
-        const cacheKeys = await caches.keys();
-        await Promise.all(cacheKeys.map(key => caches.delete(key)));
-      }
-      
-      // LocalStorage'dan geçici verileri temizle
-      localStorage.removeItem('needsRefresh');
-      localStorage.removeItem('lastRoleChange');
-      
-      return { success: true };
-    } catch (error) {
-      logger.error('Önbellek temizleme hatası:', { error: error.message });
-      return { success: false, error: error.message };
-    }
-  },
-  
-  // Profil işlemleri
   getProfile: async () => {
     try {
       const response = await api.get('/users/profile')
