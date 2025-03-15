@@ -1,6 +1,1 @@
-# Netlify _redirects dosyası
-# SPA uygulamaları için tüm rotaları index.html'e yönlendir
-/*    /index.html   200
-
-# API isteklerini backend'e yönlendir
-/api/*  https://modern-ecommerce-fullstack.onrender.com/api/:splat  200!
+/* /index.html 200
