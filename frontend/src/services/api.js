@@ -1,8 +1,8 @@
 import axios from 'axios'
 import { logger } from '../utils'
 
-// API URL'sini çevre değişkeninden al
-const API_URL = import.meta.env.VITE_APP_API_URL || 'https://modern-ecommerce-fullstack.onrender.com/api'
+// API URL'sini direkt olarak Render.com sunucusuna yönlendir
+const API_URL = 'https://modern-ecommerce-fullstack.onrender.com/api'
 
 // Alternatif API URL'leri - CORS sorunu durumunda kullanılacak
 const BACKUP_API_URLS = [
@@ -138,7 +138,7 @@ const DUMMY_DATA = {
 };
 
 // Dummy veri kullanımını kontrol eden değişken
-const USE_DUMMY_DATA = true; // Geçici olarak dummy veri kullanımını etkinleştir
+const USE_DUMMY_DATA = false; // Gerçek API kullanımı için false yapıldı
 
 // Local API instance
 export const api = axios.create({
