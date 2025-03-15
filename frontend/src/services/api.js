@@ -172,7 +172,7 @@ api.interceptors.request.use(
     if (USE_DUMMY_DATA) {
       // Bu config'i işaretle, response interceptor'da kullanacağız
       config.useDummyData = true;
-      console.log('Dummy veri kullanımı etkin, API çağrısı işaretlendi:', config.url);
+      logger.info('Dummy veri kullanımı etkin, API çağrısı işaretlendi:', config.url);
     }
     
     // LocalStorage'dan token'ı al
@@ -189,7 +189,7 @@ api.interceptors.request.use(
     return config
   },
   (error) => {
-    console.error('API request error:', error.message);
+    logger.error('API request error:', error.message);
     return Promise.reject(error)
   }
 )
@@ -202,14 +202,14 @@ api.interceptors.response.use(
       const url = response.config.url;
       const method = response.config.method;
       
-      console.log('Dummy veri kullanılıyor, URL:', url);
+      logger.info('Dummy veri kullanılıyor, URL:', url);
       
       // URL'den endpoint'i çıkar
       const endpoint = url.split('/').pop();
       
       // Dummy veri döndür
       if (url.includes('/products') && !url.includes('/categories')) {
-        console.log('Dummy ürün verileri kullanılıyor');
+        logger.info('Dummy ürün verileri kullanılıyor');
         return {
           ...response,
           data: { 
@@ -221,7 +221,7 @@ api.interceptors.response.use(
           }
         };
       } else if (url.includes('/products/categories') || endpoint === 'categories') {
-        console.log('Dummy kategori verileri kullanılıyor');
+        logger.info('Dummy kategori verileri kullanılıyor');
         return {
           ...response,
           data: { 
@@ -230,7 +230,7 @@ api.interceptors.response.use(
           }
         };
       } else if (url.includes('/users')) {
-        console.log('Dummy kullanıcı verileri kullanılıyor');
+        logger.info('Dummy kullanıcı verileri kullanılıyor');
         return {
           ...response,
           data: { 
@@ -239,7 +239,7 @@ api.interceptors.response.use(
           }
         };
       } else if (url.includes('/orders')) {
-        console.log('Dummy sipariş verileri kullanılıyor');
+        logger.info('Dummy sipariş verileri kullanılıyor');
         return {
           ...response,
           data: { 
@@ -257,14 +257,14 @@ api.interceptors.response.use(
     if (USE_DUMMY_DATA && error.config) {
       const url = error.config.url;
       
-      console.log('API hatası oluştu, dummy veri kullanılacak. URL:', url);
+      logger.info('API hatası oluştu, dummy veri kullanılacak. URL:', url);
       
       // URL'den endpoint'i çıkar
       const endpoint = url.split('/').pop();
       
       // Dummy veri döndür
       if (url.includes('/products') && !url.includes('/categories')) {
-        console.log('Hata durumunda dummy ürün verileri kullanılıyor');
+        logger.info('Hata durumunda dummy ürün verileri kullanılıyor');
         return Promise.resolve({ 
           data: { 
             success: true, 
@@ -275,7 +275,7 @@ api.interceptors.response.use(
           } 
         });
       } else if (url.includes('/products/categories') || endpoint === 'categories') {
-        console.log('Hata durumunda dummy kategori verileri kullanılıyor');
+        logger.info('Hata durumunda dummy kategori verileri kullanılıyor');
         return Promise.resolve({ 
           data: { 
             success: true, 
@@ -283,7 +283,7 @@ api.interceptors.response.use(
           } 
         });
       } else if (url.includes('/users')) {
-        console.log('Hata durumunda dummy kullanıcı verileri kullanılıyor');
+        logger.info('Hata durumunda dummy kullanıcı verileri kullanılıyor');
         return Promise.resolve({ 
           data: { 
             success: true, 
@@ -291,7 +291,7 @@ api.interceptors.response.use(
           } 
         });
       } else if (url.includes('/orders')) {
-        console.log('Hata durumunda dummy sipariş verileri kullanılıyor');
+        logger.info('Hata durumunda dummy sipariş verileri kullanılıyor');
         return Promise.resolve({ 
           data: { 
             success: true, 
@@ -303,7 +303,7 @@ api.interceptors.response.use(
     
     // CORS hatalarını özel olarak logla
     if (error.message && (error.message.includes('Network Error') || error.message.includes('CORS'))) {
-      console.error('CORS veya ağ hatası:', error.message, 'URL:', error.config?.url);
+      logger.error('CORS veya ağ hatası:', error.message, 'URL:', error.config?.url);
       
       // CORS hatası durumunda yedek API'yi dene
       if (error.config) {
@@ -312,7 +312,7 @@ api.interceptors.response.use(
           currentBackupUrlIndex = (currentBackupUrlIndex + 1) % BACKUP_API_URLS.length;
           backupApi.defaults.baseURL = BACKUP_API_URLS[currentBackupUrlIndex];
           
-          console.log(`Yedek API URL'sine geçiliyor: ${backupApi.defaults.baseURL}`);
+          logger.info(`Yedek API URL'sine geçiliyor: ${backupApi.defaults.baseURL}`);
           
           // Orijinal isteği yedek API ile tekrar dene
           const retryConfig = { ...error.config };
@@ -320,12 +320,12 @@ api.interceptors.response.use(
           
           return axios(retryConfig);
         } catch (retryError) {
-          console.error('Yedek API ile de istek başarısız:', retryError.message);
+          logger.error('Yedek API ile de istek başarısız:', retryError.message);
           
           // Tüm API'ler başarısız olursa dummy veri kullan
           const endpoint = error.config.url.split('/').pop();
           if (endpoint === 'products' || error.config.url.includes('/products')) {
-            console.log('Dummy ürün verileri kullanılıyor');
+            logger.info('Dummy ürün verileri kullanılıyor');
             return Promise.resolve({ 
               data: { 
                 success: true, 
@@ -333,7 +333,7 @@ api.interceptors.response.use(
               } 
             });
           } else if (endpoint === 'categories' || error.config.url.includes('/categories')) {
-            console.log('Dummy kategori verileri kullanılıyor');
+            logger.info('Dummy kategori verileri kullanılıyor');
             return Promise.resolve({ 
               data: { 
                 success: true, 
@@ -367,12 +367,12 @@ export const dummyApi = axios.create({
 export const productAPI = {
   getAll: async (limit) => {
     try {
-      console.log('getAll çağrıldı, limit:', limit);
+      logger.info('getAll çağrıldı, limit:', limit);
       const response = await api.get(`/products${limit ? `?limit=${limit}` : ''}`);
-      console.log('getAll yanıtı:', response?.data);
+      logger.info('getAll yanıtı:', response?.data);
       
       if (USE_DUMMY_DATA) {
-        console.log('Dummy ürün verileri döndürülüyor');
+        logger.info('Dummy ürün verileri döndürülüyor');
         return {
           success: true,
           data: DUMMY_DATA.products
@@ -387,10 +387,10 @@ export const productAPI = {
       }
       return { success: false, data: [] };
     } catch (error) {
-      console.error('Products fetch error:', error.message);
+      logger.error('Products fetch error:', error.message);
       
       if (USE_DUMMY_DATA) {
-        console.log('Hata durumunda dummy ürün verileri döndürülüyor');
+        logger.info('Hata durumunda dummy ürün verileri döndürülüyor');
         return {
           success: true,
           data: DUMMY_DATA.products
@@ -402,11 +402,11 @@ export const productAPI = {
   },
   getById: async (id) => {
     try {
-      console.log('getById çağrıldı, id:', id);
+      logger.info('getById çağrıldı, id:', id);
       
       if (USE_DUMMY_DATA) {
         const product = DUMMY_DATA.products.find(p => p._id === id);
-        console.log('Dummy ürün verisi döndürülüyor:', product);
+        logger.info('Dummy ürün verisi döndürülüyor:', product);
         return {
           success: true,
           product: product || null
@@ -426,7 +426,7 @@ export const productAPI = {
         error: response?.data?.message || 'Ürün bulunamadı'
       };
     } catch (error) {
-      console.error('Ürün detayı getirme hatası:', error.message);
+      logger.error('Ürün detayı getirme hatası:', error.message);
       
       if (USE_DUMMY_DATA) {
         const product = DUMMY_DATA.products.find(p => p._id === id);
@@ -456,10 +456,10 @@ export const productAPI = {
   delete: (id) => api.delete(`/products/${id}`),
   getCategories: async () => {
     try {
-      console.log('getCategories çağrıldı');
+      logger.info('getCategories çağrıldı');
       
       if (USE_DUMMY_DATA) {
-        console.log('Dummy kategori verileri döndürülüyor');
+        logger.info('Dummy kategori verileri döndürülüyor');
         return {
           success: true,
           data: DUMMY_DATA.categories
@@ -475,7 +475,7 @@ export const productAPI = {
       }
       return { success: false, data: [] };
     } catch (error) {
-      console.error('Categories fetch error:', error.message);
+      logger.error('Categories fetch error:', error.message);
       
       if (USE_DUMMY_DATA) {
         return {
@@ -504,7 +504,7 @@ export const productAPI = {
   },
   getByCategory: async (category, limit = 15, skip = 0) => {
     try {
-      console.log('getByCategory çağrıldı, category:', category);
+      logger.info('getByCategory çağrıldı, category:', category);
       
       if (USE_DUMMY_DATA) {
         // Kategori adını normalize et
@@ -517,7 +517,7 @@ export const productAPI = {
                  productCategory.replace(/ /g, '-') === normalizedCategory;
         });
         
-        console.log('Dummy kategori ürünleri döndürülüyor:', filteredProducts.length);
+        logger.info('Dummy kategori ürünleri döndürülüyor:', filteredProducts.length);
         
         return {
           success: true,
@@ -529,7 +529,7 @@ export const productAPI = {
       }
       
       if (!category) {
-        console.warn('Kategori belirtilmeden getByCategory çağrıldı');
+        logger.warn('Kategori belirtilmeden getByCategory çağrıldı');
         return { success: false, data: [], error: 'Kategori belirtilmedi' };
       }
       
@@ -582,7 +582,7 @@ export const productAPI = {
         total: response?.data?.total || 0
       };
     } catch (error) {
-      console.error('Kategori ürünleri getirme hatası:', error.message, 'category:', category);
+      logger.error('Kategori ürünleri getirme hatası:', error.message, 'category:', category);
       
       if (USE_DUMMY_DATA) {
         // Kategori adını normalize et
