@@ -18,18 +18,13 @@ exports.protect = catchAsync(async (req, res, next) => {
 
   try {
     // Token'ı doğrula
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'modern-ecommerce-secret-jwt');
 
     // Kullanıcıyı bul
     const user = await User.findById(decoded.id);
 
     if (!user) {
       return next(new AppError('Bu token\'a sahip kullanıcı artık mevcut değil', 401));
-    }
-
-    // Role değişikliği kontrolü
-    if (decoded.role !== user.role) {
-      return next(new AppError('Kullanıcı rolü değiştirilmiş. Lütfen tekrar giriş yapın.', 401));
     }
 
     // Kullanıcıyı request'e ekle
@@ -48,4 +43,4 @@ exports.authorize = (...roles) => {
     }
     next();
   };
-}; 
+};
