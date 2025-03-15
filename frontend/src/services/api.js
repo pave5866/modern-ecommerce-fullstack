@@ -1,12 +1,12 @@
 import axios from 'axios'
 import { logger } from '../utils'
 
-// API URL'sini direkt olarak Render.com sunucusuna yönlendir
-const API_URL = 'https://modern-ecommerce-fullstack.onrender.com/api'
+// API URL - .env dosyasından al veya sabit değeri kullan
+// Netlify için - her zaman sabit URL kullanmayı tercih et
+const API_URL = 'https://modern-ecommerce-fullstack.onrender.com/api';
 
-// Alternatif API URL'leri - CORS sorunu durumunda kullanılacak
+// Alternatif API URL'leri - CORS sorunu durumunda kullanılacak 
 const BACKUP_API_URLS = [
-  '/api', // Vite proxy ile çalışır
   'https://modern-ecommerce-fullstack.onrender.com/api',
   'https://cors-anywhere.herokuapp.com/https://modern-ecommerce-fullstack.onrender.com/api',
   'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://modern-ecommerce-fullstack.onrender.com/api')
@@ -140,13 +140,14 @@ const DUMMY_DATA = {
 // Dummy veri kullanımını kontrol eden değişken
 const USE_DUMMY_DATA = false; // Gerçek API kullanımı için false yapıldı
 
-// Local API instance
+// Local API instance - baseURL özellikle sabit ve doğrudan verildi
 export const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    'X-Requested-With': 'XMLHttpRequest'
+    'X-Requested-With': 'XMLHttpRequest',
+    'Access-Control-Allow-Origin': '*' // CORS için ön tarafta da header
   },
   withCredentials: false, // CORS sorunlarını önlemek için false yapıldı
   timeout: 15000 // 15 saniye timeout
@@ -159,7 +160,8 @@ export const backupApi = axios.create({
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    'X-Requested-With': 'XMLHttpRequest'
+    'X-Requested-With': 'XMLHttpRequest',
+    'Access-Control-Allow-Origin': '*'
   },
   withCredentials: false,
   timeout: 15000
@@ -168,6 +170,12 @@ export const backupApi = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
+    // API çağrısını loglama
+    logger.info(`API isteği yapılıyor: ${config.method?.toUpperCase()} ${config.url}`, { 
+      baseURL: API_URL,
+      headers: config.headers
+    });
+    
     // Dummy veri kullanımı etkinse, API çağrısını engelle ve dummy veri kullan
     if (USE_DUMMY_DATA) {
       // Bu config'i işaretle, response interceptor'da kullanacağız
@@ -197,6 +205,8 @@ api.interceptors.request.use(
 // Response interceptor
 api.interceptors.response.use(
   (response) => {
+    logger.info(`API yanıtı alındı: ${response.status} ${response.config.url}`);
+    
     // Dummy veri kullanımı etkinse ve config işaretlenmişse, dummy veri döndür
     if (USE_DUMMY_DATA && response.config.useDummyData) {
       const url = response.config.url;
@@ -253,6 +263,13 @@ api.interceptors.response.use(
     return response;
   },
   async (error) => {
+    // İstek hatasını logla
+    logger.error(`API hata yanıtı alındı: ${error.message}`, { 
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status
+    });
+    
     // Dummy veri kullanımı etkinse, hata durumunda dummy veri döndür
     if (USE_DUMMY_DATA && error.config) {
       const url = error.config.url;
@@ -355,21 +372,17 @@ api.interceptors.response.use(
   }
 )
 
-// Dummy API instance
-export const dummyApi = axios.create({
-  baseURL: 'https://dummyjson.com',
-  headers: {
-    'Content-Type': 'application/json'
-  }
-})
-
 // Product endpoints
 export const productAPI = {
   getAll: async (limit) => {
     try {
       logger.info('getAll çağrıldı, limit:', limit);
       const response = await api.get(`/products${limit ? `?limit=${limit}` : ''}`);
-      logger.info('getAll yanıtı:', response?.data);
+      logger.info('getAll yanıtı alındı:', { 
+        status: response?.status,
+        success: response?.data?.success,
+        dataCount: response?.data?.data?.length || 0 
+      });
       
       if (USE_DUMMY_DATA) {
         logger.info('Dummy ürün verileri döndürülüyor');
