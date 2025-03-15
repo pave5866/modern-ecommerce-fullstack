@@ -3,11 +3,24 @@
   publish = "dist"
   command = "npm run build"
 
+# SPA yönlendirmeleri için
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+  force = true
 
+# API proxy - CORS sorunlarını önlemek için
+[[redirects]]
+  from = "/api/*"
+  to = "https://modern-ecommerce-fullstack.onrender.com/api/:splat"
+  status = 200
+  force = true
+  [redirects.headers]
+    X-From = "Netlify"
+    X-Proxied = "true"
+
+# CORS ayarları
 [[headers]]
   for = "/*"
     [headers.values]
@@ -15,3 +28,13 @@
     Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
     Access-Control-Allow-Headers = "Origin, X-Requested-With, Content-Type, Accept, Authorization"
     Access-Control-Allow-Credentials = "true"
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# Çevre değişkenleri
+[context.production.environment]
+  VITE_APP_API_URL = "https://modern-ecommerce-fullstack.onrender.com/api"
+  VITE_APP_ENV = "production"
+
+[context.deploy-preview.environment]
+  VITE_APP_API_URL = "https://modern-ecommerce-fullstack.onrender.com/api"
+  VITE_APP_ENV = "production"
