@@ -444,7 +444,7 @@
         });
 
         // API Call function
-        async function makeApiCall(endpoint, data, responseElementId, spinnerId) {
+        async function makeApiCall(endpoint, data, responseElementId, spinnerId, method = 'POST') {
             const spinner = document.getElementById(spinnerId);
             spinner.style.display = 'inline-block';
             
@@ -453,7 +453,7 @@
             
             try {
                 const response = await fetch(fullUrl, {
-                    method: 'POST',
+                    method: method,
                     headers: {
                         'Content-Type': 'application/json'
                     },
@@ -516,7 +516,7 @@
             const email = document.getElementById('selfEmail').value;
             const password = document.getElementById('selfPassword').value;
             
-            const result = await makeApiCall('/admin/self-promote', { email, password }, 'selfPromoteResponse', 'selfPromoteSpinner');
+            const result = await makeApiCall('/admin/self-promote', { email, password }, 'selfPromoteResponse', 'selfPromoteSpinner', 'PUT');
             
             if (result && result.success) {
                 document.getElementById('selfPromoteForm').reset();
