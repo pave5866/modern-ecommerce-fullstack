@@ -193,7 +193,23 @@ export const productAPI = {
 // Auth endpoints
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
-  login: (data) => api.post('/auth/login', data),
+  login: async (data) => {
+    try {
+      logger.info('Login isteği yapılıyor', { email: data.email });
+      
+      const response = await api.post('/auth/login', data, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      logger.info('Login yanıtı alındı', { status: response.status });
+      return response;
+    } catch (error) {
+      logger.error('Login hatası:', error.message);
+      throw error;
+    }
+  },
   logout: () => api.post('/auth/logout'),
   update: (data) => api.put('/auth/profile', data),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
