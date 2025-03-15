@@ -46,6 +46,7 @@ app.get('/api', (req, res) => {
       '/api/products/categories',
       '/api/users',
       '/api/auth',
+      '/api/admin',
       '/api/orders',
       '/api/addresses',
       '/api/coupons',
@@ -96,9 +97,10 @@ app.use('/api/users', require('./routes/user.routes'));
 app.use('/api/settings', require('./routes/settings.routes'));
 app.use('/api/dashboard', require('./routes/dashboard.routes'));
 app.use('/api/logs', require('./routes/log.routes'));
+app.use('/api/admin', require('./routes/admin.routes')); // Yeni admin route'ları eklendi
 
 // Root endpoint
-app.get('/api', (req, res) => {
+app.get('/', (req, res) => {
     res.status(200).json({
         success: true,
         message: 'API çalışıyor',
