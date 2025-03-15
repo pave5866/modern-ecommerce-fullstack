@@ -3,275 +3,531 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Yardımcı Sayfası</title>
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Admin Yardımcı Araçları</title>
     <style>
+        :root {
+            --primary-color: #3f51b5;
+            --secondary-color: #f50057;
+            --success-color: #4caf50;
+            --error-color: #f44336;
+            --text-color: #333;
+            --bg-color: #f5f5f5;
+            --card-bg: #fff;
+            --border-color: #e0e0e0;
+        }
+
+        body.dark-mode {
+            --primary-color: #5c6bc0;
+            --secondary-color: #ff4081;
+            --success-color: #66bb6a;
+            --error-color: #e57373;
+            --text-color: #f5f5f5;
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --border-color: #333;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            background-color: var(--bg-color);
+            color: var(--text-color);
             padding: 20px;
-            background-color: #f8f9fa;
         }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            position: relative;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: var(--primary-color);
+        }
+
+        .theme-toggle {
+            position: absolute;
+            right: 0;
+            top: 0;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-color);
+        }
+
         .card {
-            margin-bottom: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            padding: 25px;
+            margin-bottom: 30px;
+            border: 1px solid var(--border-color);
+            transition: transform 0.3s, box-shadow 0.3s;
         }
-        .card-header {
-            background-color: #4a6cf7;
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        h2 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            font-size: 1.8rem;
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 10px;
+            display: inline-block;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        input, select {
+            padding: 12px 15px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            font-size: 1rem;
+            background-color: var(--card-bg);
+            color: var(--text-color);
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(63, 81, 181, 0.2);
+        }
+
+        button {
+            background-color: var(--primary-color);
             color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #303f9f;
+        }
+
+        .response {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            display: none;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        .response.success {
+            background-color: rgba(76, 175, 80, 0.1);
+            border: 1px solid var(--success-color);
+            color: var(--success-color);
+        }
+
+        .response.error {
+            background-color: rgba(244, 67, 54, 0.1);
+            border: 1px solid var(--error-color);
+            color: var(--error-color);
+        }
+
+        pre {
+            background-color: rgba(0, 0, 0, 0.05);
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin-top: 10px;
+            white-space: pre-wrap;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            border-radius: 6px 6px 0 0;
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-bottom: none;
+            cursor: pointer;
+        }
+
+        .tab.active {
+            background-color: var(--card-bg);
+            color: var(--primary-color);
             font-weight: 600;
         }
-        .btn-primary {
-            background-color: #4a6cf7;
-            border-color: #4a6cf7;
+
+        .tab-content {
+            display: none;
         }
-        .btn-success {
-            background-color: #0ea5e9;
-            border-color: #0ea5e9;
+
+        .tab-content.active {
+            display: block;
         }
-        pre {
-            background-color: #f0f0f0;
-            padding: 10px;
-            border-radius: 5px;
-            overflow-x: auto;
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+            display: none;
         }
-        #responseContainer {
-            max-height: 300px;
-            overflow-y: auto;
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
-        .form-control:focus {
-            border-color: #4a6cf7;
-            box-shadow: 0 0 0 0.25rem rgba(74, 108, 247, 0.25);
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
-        .alert {
-            margin-top: 20px;
+
+        .help-text {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .api-url-display {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: rgba(63, 81, 181, 0.1);
+            border-radius: 6px;
+            font-family: monospace;
+            word-break: break-all;
+        }
+
+        .config-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .config-row label {
+            min-width: 120px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            h2 {
+                font-size: 1.5rem;
+            }
+            
+            .card {
+                padding: 15px;
+            }
+            
+            .config-row {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .config-row label {
+                min-width: unset;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1 class="text-center my-4">E-Commerce Admin Yardımcı Sayfası</h1>
-        <p class="lead text-center mb-4">Bu sayfa, admin kullanıcısı oluşturmanıza ve yönetmenize yardımcı olur.</p>
+        <header>
+            <h1>Admin Yardımcı Araçları</h1>
+            <p>Bu sayfa, admin işlemlerini gerçekleştirmenize yardımcı olur</p>
+            <button class="theme-toggle" id="themeToggle">🌙</button>
+        </header>
 
-        <div class="row">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        Yeni Admin Kullanıcısı Oluştur
-                    </div>
-                    <div class="card-body">
-                        <form id="adminCreateForm">
-                            <div class="mb-3">
-                                <label for="createName" class="form-label">Ad Soyad</label>
-                                <input type="text" class="form-control" id="createName" placeholder="Kadir ERDEM" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="createEmail" class="form-label">E-posta</label>
-                                <input type="email" class="form-control" id="createEmail" placeholder="ornek@gmail.com" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="createPassword" class="form-label">Şifre</label>
-                                <input type="password" class="form-control" id="createPassword" placeholder="En az 6 karakter" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="createSecretKey" class="form-label">Güvenlik Anahtarı</label>
-                                <input type="password" class="form-control" id="createSecretKey" placeholder="Güvenlik anahtarı" value="Kadire5866ModeRn2024" required>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100">Admin Kullanıcısı Oluştur</button>
-                        </form>
-                    </div>
-                </div>
+        <div class="api-url-display" id="apiUrlDisplay">
+            API URL: <span id="currentApiUrl">-</span>
+        </div>
 
-                <div class="card">
-                    <div class="card-header">
-                        Mevcut Kullanıcıyı Admin Yap
+        <div class="tabs">
+            <div class="tab active" data-tab="create-admin">Admin Oluştur</div>
+            <div class="tab" data-tab="self-promote">Kendini Admin Yap</div>
+            <div class="tab" data-tab="config">API Yapılandırma</div>
+        </div>
+
+        <div class="tab-content active" id="create-admin">
+            <div class="card">
+                <h2>Yeni Admin Oluştur</h2>
+                <form id="createAdminForm">
+                    <div class="form-group">
+                        <label for="name">Ad Soyad</label>
+                        <input type="text" id="name" name="name" required placeholder="Örn: Ali Yılmaz">
                     </div>
-                    <div class="card-body">
-                        <form id="loginForm">
-                            <div class="mb-3">
-                                <label for="loginEmail" class="form-label">E-posta</label>
-                                <input type="email" class="form-control" id="loginEmail" placeholder="ornek@gmail.com" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="loginPassword" class="form-label">Şifre</label>
-                                <input type="password" class="form-control" id="loginPassword" placeholder="Şifreniz" required>
-                            </div>
-                            <button type="submit" class="btn btn-success w-100">Giriş Yap ve Admin Yap</button>
-                        </form>
+                    <div class="form-group">
+                        <label for="email">E-posta</label>
+                        <input type="email" id="email" name="email" required placeholder="ornek@mail.com">
                     </div>
-                </div>
+                    <div class="form-group">
+                        <label for="password">Şifre</label>
+                        <input type="password" id="password" name="password" required placeholder="Güçlü bir şifre girin">
+                    </div>
+                    <button type="submit">
+                        <div class="spinner" id="createAdminSpinner"></div>
+                        Admin Oluştur
+                    </button>
+                </form>
+                <div class="response" id="createAdminResponse"></div>
             </div>
+        </div>
 
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        API Yanıtı
+        <div class="tab-content" id="self-promote">
+            <div class="card">
+                <h2>Kendini Admin Yap</h2>
+                <p class="help-text">Mevcut hesabınızı admin rolüne yükseltir.</p>
+                <form id="selfPromoteForm">
+                    <div class="form-group">
+                        <label for="selfEmail">E-posta</label>
+                        <input type="email" id="selfEmail" name="email" required placeholder="ornek@mail.com">
                     </div>
-                    <div class="card-body">
-                        <div id="responseContainer" class="overflow-auto">
-                            <div class="alert alert-info">
-                                İşlem sonuçları burada görüntülenecek.
-                            </div>
-                        </div>
+                    <div class="form-group">
+                        <label for="selfPassword">Şifre</label>
+                        <input type="password" id="selfPassword" name="password" required placeholder="Mevcut şifreniz">
                     </div>
+                    <button type="submit">
+                        <div class="spinner" id="selfPromoteSpinner"></div>
+                        Admin Yetkisi Al
+                    </button>
+                </form>
+                <div class="response" id="selfPromoteResponse"></div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="config">
+            <div class="card">
+                <h2>API Yapılandırma</h2>
+                <div class="config-row">
+                    <label for="apiUrl">API URL</label>
+                    <input type="text" id="apiUrl" placeholder="https://example.com/api">
                 </div>
-
-                <div class="card">
-                    <div class="card-header">
-                        Kullanım Talimatları
-                    </div>
-                    <div class="card-body">
-                        <h5>Admin Kullanıcısı Oluşturmak İçin:</h5>
-                        <ol>
-                            <li>Soldaki formu doldurun (Ad Soyad, E-posta, Şifre)</li>
-                            <li>Güvenlik anahtarı: <code>Kadire5866ModeRn2024</code></li>
-                            <li>"Admin Kullanıcısı Oluştur" butonuna tıklayın</li>
-                        </ol>
-
-                        <h5>Mevcut Kullanıcıyı Admin Yapmak İçin:</h5>
-                        <ol>
-                            <li>Önce siteye normal kayıt olun</li>
-                            <li>Sonra bu sayfaya geri dönün</li>
-                            <li>E-posta ve şifrenizle giriş yapın</li>
-                            <li>"Giriş Yap ve Admin Yap" butonuna tıklayın</li>
-                        </ol>
-
-                        <div class="alert alert-warning mt-3">
-                            <strong>Not:</strong> Admin olduktan sonra sayfayı yenileyip siteye tekrar giriş yapmalısınız.
-                        </div>
-                    </div>
+                <div class="config-row">
+                    <label for="useDummyData">Dummy Veri</label>
+                    <select id="useDummyData">
+                        <option value="false">Hayır - Gerçek API kullan</option>
+                        <option value="true">Evet - Dummy veri kullan</option>
+                    </select>
                 </div>
+                <button id="saveConfig">Ayarları Kaydet</button>
+                <div class="response" id="configResponse"></div>
             </div>
         </div>
     </div>
 
-    <!-- JavaScript -->
     <script>
-        const API_URL = 'https://modern-ecommerce-fullstack.onrender.com/api';
-        const responseContainer = document.getElementById('responseContainer');
+        // Theme switcher
+        const themeToggle = document.getElementById('themeToggle');
+        const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
-        // Admin kullanıcısı oluşturma formu
-        document.getElementById('adminCreateForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const name = document.getElementById('createName').value;
-            const email = document.getElementById('createEmail').value;
-            const password = document.getElementById('createPassword').value;
-            const secretKey = document.getElementById('createSecretKey').value;
-            
-            displayResponse('İstek gönderiliyor...', 'info');
-            
-            try {
-                const response = await fetch(`${API_URL}/admin/create`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        name,
-                        email,
-                        password,
-                        secretKey
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    displayResponse('✅ Admin kullanıcısı başarıyla oluşturuldu:\n' + JSON.stringify(data, null, 2), 'success');
-                } else {
-                    displayResponse('❌ Admin kullanıcısı oluşturulamadı:\n' + JSON.stringify(data, null, 2), 'danger');
-                }
-            } catch (error) {
-                displayResponse('❌ Hata oluştu: ' + error.message, 'danger');
-                
-                // Backend API'ye ulaşılamadığında alternatif yöntem
-                displayResponse('\n\n🔄 API ulaşılamadığı için alternatif yöntemi deneyiniz:\n\n' + 
-                    '1. Sitenize gidip normal kayıt olun\n' +
-                    '2. Giriş yapın\n' +
-                    '3. Tarayıcı konsolunu açın (F12)\n' +
-                    '4. Aşağıdaki kodu konsola yapıştırın:\n\n' +
-                    `localStorage.setItem('userRole', 'admin');\n` +
-                    `console.log('✅ Admin rolü ayarlandı. Sayfayı yenileyin.');`, 'info');
-            }
-        });
-
-        // Giriş yapma ve admin yapma formu
-        document.getElementById('loginForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const email = document.getElementById('loginEmail').value;
-            const password = document.getElementById('loginPassword').value;
-            
-            displayResponse('Giriş yapılıyor...', 'info');
-            
-            try {
-                // Önce giriş yap
-                const loginResponse = await fetch(`${API_URL}/auth/login`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        email,
-                        password
-                    })
-                });
-                
-                const loginData = await loginResponse.json();
-                
-                if (!loginData.success) {
-                    return displayResponse('❌ Giriş başarısız: ' + JSON.stringify(loginData, null, 2), 'danger');
-                }
-                
-                displayResponse('✅ Giriş başarılı. Admin yapma işlemi başlatılıyor...', 'success');
-                
-                // Giriş başarılıysa admin yap
-                const token = loginData.token;
-                
-                const adminResponse = await fetch(`${API_URL}/admin/self-promote`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({
-                        secretKey: 'Kadire5866ModeRn2024'
-                    })
-                });
-                
-                const adminData = await adminResponse.json();
-                
-                if (adminData.success) {
-                    displayResponse('🎉 Tebrikler! Admin rolüne yükseltildiniz:\n' + JSON.stringify(adminData, null, 2), 'success');
-                } else {
-                    displayResponse('❌ Admin yapma işlemi başarısız:\n' + JSON.stringify(adminData, null, 2), 'danger');
-                }
-            } catch (error) {
-                displayResponse('❌ Hata oluştu: ' + error.message, 'danger');
-                
-                // Backend API'ye ulaşılamadığında alternatif yöntem
-                displayResponse('\n\n🔄 API ulaşılamadığı için alternatif yöntemi deneyiniz:\n\n' + 
-                    '1. Sitenize gidip giriş yapın\n' +
-                    '2. Tarayıcı konsolunu açın (F12)\n' +
-                    '3. Aşağıdaki kodu konsola yapıştırın:\n\n' +
-                    `localStorage.setItem('userRole', 'admin');\n` +
-                    `console.log('✅ Admin rolü ayarlandı. Sayfayı yenileyin.');`, 'info');
-            }
-        });
-
-        // API yanıtını görüntüleme
-        function displayResponse(message, type) {
-            const alertDiv = document.createElement('div');
-            alertDiv.className = `alert alert-${type}`;
-            alertDiv.style.whiteSpace = 'pre-wrap';
-            alertDiv.textContent = message;
-            
-            responseContainer.innerHTML = '';
-            responseContainer.appendChild(alertDiv);
+        if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && prefersDarkMode)) {
+            document.body.classList.add('dark-mode');
+            themeToggle.textContent = '☀️';
         }
+
+        themeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            if (document.body.classList.contains('dark-mode')) {
+                localStorage.setItem('theme', 'dark');
+                themeToggle.textContent = '☀️';
+            } else {
+                localStorage.setItem('theme', 'light');
+                themeToggle.textContent = '🌙';
+            }
+        });
+
+        // Tab switching
+        const tabs = document.querySelectorAll('.tab');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabId = tab.getAttribute('data-tab');
+                
+                // Hide all tab contents
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+                
+                // Deactivate all tabs
+                tabs.forEach(t => t.classList.remove('active'));
+                
+                // Activate selected tab and content
+                tab.classList.add('active');
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+
+        // API configuration management
+        const apiUrlDisplay = document.getElementById('currentApiUrl');
+        const apiUrlInput = document.getElementById('apiUrl');
+        const useDummyDataSelect = document.getElementById('useDummyData');
+
+        // Default API URL based on environment
+        const defaultApiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+            ? 'http://localhost:5000/api' 
+            : 'https://modern-ecommerce-fullstack.onrender.com/api';
+
+        // Load saved config
+        const savedApiUrl = localStorage.getItem('apiUrl') || defaultApiUrl;
+        const savedUseDummyData = localStorage.getItem('useDummyData') || 'false';
+
+        apiUrlInput.value = savedApiUrl;
+        useDummyDataSelect.value = savedUseDummyData;
+        apiUrlDisplay.textContent = savedApiUrl;
+
+        // Save config
+        document.getElementById('saveConfig').addEventListener('click', () => {
+            const newApiUrl = apiUrlInput.value.trim();
+            const newUseDummyData = useDummyDataSelect.value;
+            
+            if (!newApiUrl) {
+                showResponse('configResponse', 'API URL boş olamaz', 'error');
+                return;
+            }
+
+            try {
+                new URL(newApiUrl); // URL formatını doğrula
+                
+                localStorage.setItem('apiUrl', newApiUrl);
+                localStorage.setItem('useDummyData', newUseDummyData);
+                apiUrlDisplay.textContent = newApiUrl;
+                
+                showResponse('configResponse', 'Ayarlar başarıyla kaydedildi', 'success');
+            } catch (e) {
+                showResponse('configResponse', 'Geçersiz URL formatı', 'error');
+            }
+        });
+
+        // API Call function
+        async function makeApiCall(endpoint, data, responseElementId, spinnerId) {
+            const spinner = document.getElementById(spinnerId);
+            spinner.style.display = 'inline-block';
+            
+            const apiUrl = localStorage.getItem('apiUrl') || defaultApiUrl;
+            const fullUrl = `${apiUrl}${endpoint}`;
+            
+            try {
+                const response = await fetch(fullUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const responseData = await response.json();
+                
+                if (response.ok) {
+                    showResponse(responseElementId, `İşlem başarılı: ${responseData.message || 'İşlem tamamlandı'}`, 'success', responseData);
+                    return responseData;
+                } else {
+                    showResponse(responseElementId, `Hata: ${responseData.message || response.statusText}`, 'error', responseData);
+                    return null;
+                }
+            } catch (error) {
+                showResponse(responseElementId, `Bağlantı hatası: ${error.message}`, 'error');
+                return null;
+            } finally {
+                spinner.style.display = 'none';
+            }
+        }
+
+        // Helper to show responses
+        function showResponse(elementId, message, type, data = null) {
+            const responseElement = document.getElementById(elementId);
+            responseElement.className = `response ${type}`;
+            
+            let html = `<p>${message}</p>`;
+            if (data) {
+                html += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            }
+            
+            responseElement.innerHTML = html;
+            responseElement.style.display = 'block';
+            
+            // Scroll to response
+            responseElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        // Create Admin Form
+        document.getElementById('createAdminForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            const result = await makeApiCall('/admin/create', { name, email, password }, 'createAdminResponse', 'createAdminSpinner');
+            
+            if (result && result.success) {
+                document.getElementById('createAdminForm').reset();
+            }
+        });
+
+        // Self Promote Form
+        document.getElementById('selfPromoteForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('selfEmail').value;
+            const password = document.getElementById('selfPassword').value;
+            
+            const result = await makeApiCall('/admin/self-promote', { email, password }, 'selfPromoteResponse', 'selfPromoteSpinner');
+            
+            if (result && result.success) {
+                document.getElementById('selfPromoteForm').reset();
+                
+                // Store token if provided
+                if (result.token) {
+                    localStorage.setItem('token', result.token);
+                    localStorage.setItem('user', JSON.stringify(result.user));
+                }
+            }
+        });
     </script>
 </body>
 </html>
