@@ -44,28 +44,49 @@ export const useAuthStore = create((set) => ({
   login: async (data) => {
     try {
       const response = await authAPI.login(data);
-
-      if (response?.data?.success && response?.data?.data) {
-        const { user, token } = response.data.data;
+      
+      if (response && response.data) {
+        // Veri yapısını kontrol et ve doğru şekilde çıkar
+        let userData, tokenData;
         
-        if (user && token) {
+        // Gelecek farklı API yanıt formatlarını kontrol et
+        if (response.data.success === true && response.data.data) {
+          // Backend yanıt yapısı: { success: true, data: { user: {...}, token: '...' } }
+          userData = response.data.data.user;
+          tokenData = response.data.data.token;
+        } else if (response.data.token && response.data.user) {
+          // Alternatif yanıt yapısı: { token: '...', user: {...} }
+          userData = response.data.user;
+          tokenData = response.data.token;
+        } else if (response.data.data && response.data.token) {
+          // Başka bir olası yapı: { data: {...}, token: '...' }
+          userData = response.data.data;
+          tokenData = response.data.token;
+        }
+
+        if (userData && tokenData) {
           // Admin kullanıcı giriş yaptığında sepeti temizle
-          if (user.role === 'admin') {
-            // Sepeti temizle
+          if (userData.role === 'admin') {
             const clearCart = useCartStore.getState().clearCart;
             clearCart();
             logger.info('Admin kullanıcı girişi yapıldı, sepet temizlendi');
           }
           
-          localStorage.setItem('user', JSON.stringify(user));
-          localStorage.setItem('token', token);
-          set({ user, token, isAuthenticated: true });
+          localStorage.setItem('user', JSON.stringify(userData));
+          localStorage.setItem('token', tokenData);
+          set({ user: userData, token: tokenData, isAuthenticated: true });
           return response;
         }
       }
       
+      logger.error('Geçersiz sunucu yanıtı:', response);
       throw new Error('Geçersiz sunucu yanıtı');
     } catch (error) {
+      logger.error('Login hatası:', { 
+        message: error.message,
+        responseData: error.response?.data
+      });
+      
       localStorage.removeItem('user');
       localStorage.removeItem('token');
       set({ user: null, token: null, isAuthenticated: false });
