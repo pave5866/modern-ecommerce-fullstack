@@ -23,7 +23,7 @@ const createSendToken = (user, statusCode, req, res) => {
     expires: new Date(Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000),
     httpOnly: true,
     secure: req.secure || req.headers['x-forwarded-proto'] === 'https',
-    sameSite: 'strict'
+    sameSite: 'none' // CORS için önemli
   };
 
   res.cookie('jwt', token, cookieOptions);
@@ -76,56 +76,102 @@ exports.register = async (req, res, next) => {
 // Login
 exports.login = async (req, res, next) => {
   try {
+    logger.info('Login isteği alındı');
+    
     const { email, password } = req.body;
 
-    // Email ve şifre kontrolü
+    // Email ve şifre varlık kontrolü
     if (!email || !password) {
-      throw createError(400, 'Lütfen email ve şifre giriniz');
+      logger.warn('Email veya şifre eksik', { email });
+      return res.status(400).json({
+        success: false,
+        message: 'Lütfen email ve şifre giriniz'
+      });
     }
 
-    // Kullanıcı kontrolü ve şifre doğrulama
-    const user = await User.findOne({ email }).select('+password');
-    
-    if (!user || !(await user.comparePassword(password))) {
-      throw createError(401, 'Email veya şifre hatalı');
-    }
+    // Kullanıcı kontrolü ve şifre doğrulama - try/catch ile sarmalandı
+    try {
+      const user = await User.findOne({ email }).select('+password');
+      
+      if (!user) {
+        logger.warn('Kullanıcı bulunamadı', { email });
+        return res.status(401).json({
+          success: false,
+          message: 'Email veya şifre hatalı'
+        });
+      }
+      
+      const isPasswordCorrect = await user.comparePassword(password);
+      
+      if (!isPasswordCorrect) {
+        logger.warn('Şifre hatalı', { email });
+        return res.status(401).json({
+          success: false,
+          message: 'Email veya şifre hatalı'
+        });
+      }
 
-    // Son giriş tarihini güncelle
-    user.lastLogin = Date.now();
-    await user.save({ validateBeforeSave: false });
+      // Son giriş tarihini güncelle
+      user.lastLogin = Date.now();
+      await user.save({ validateBeforeSave: false });
 
-    // Token oluştur
-    const token = jwt.sign(
-      { 
-        id: user._id,
+      // Token oluştur
+      const token = jwt.sign(
+        { 
+          id: user._id,
+          role: user.role,
+          email: user.email 
+        }, 
+        process.env.JWT_SECRET,
+        {
+          expiresIn: process.env.JWT_EXPIRES_IN
+        }
+      );
+
+      // CORS için gerekli cookie ayarları
+      const cookieOptions = {
+        expires: new Date(Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000),
+        httpOnly: true,
+        secure: req.secure || req.headers['x-forwarded-proto'] === 'https',
+        sameSite: 'none'
+      };
+
+      res.cookie('jwt', token, cookieOptions);
+
+      // Kullanıcı bilgilerini hazırla (password hariç)
+      const userResponse = {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
         role: user.role,
-        email: user.email 
-      }, 
-      process.env.JWT_SECRET,
-      {
-        expiresIn: process.env.JWT_EXPIRES_IN
-      }
-    );
+        lastLogin: user.lastLogin
+      };
 
-    // Kullanıcı bilgilerini hazırla (password hariç)
-    const userResponse = {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      lastLogin: user.lastLogin
-    };
+      logger.info('Login başarılı', { userId: user._id, role: user.role });
 
-    // Yanıtı gönder
-    res.status(200).json({
-      success: true,
-      data: {
-        user: userResponse,
-        token
-      }
-    });
+      // Yanıtı gönder
+      return res.status(200).json({
+        success: true,
+        data: {
+          user: userResponse,
+          token
+        }
+      });
+    } catch (error) {
+      logger.error('Login işlemi sırasında hata', { error: error.message });
+      return res.status(500).json({
+        success: false,
+        message: 'Login işlemi sırasında bir hata oluştu',
+        error: error.message
+      });
+    }
   } catch (error) {
-    next(error);
+    logger.error('Login genel hatası', { error: error.message, stack: error.stack });
+    return res.status(500).json({
+      success: false,
+      message: 'Sunucu hatası',
+      error: error.message
+    });
   }
 };
 
@@ -215,7 +261,9 @@ exports.resetPassword = async (req, res, next) => {
 exports.logout = (req, res) => {
   res.cookie('jwt', 'loggedout', {
     expires: new Date(Date.now() + 10 * 1000),
-    httpOnly: true
+    httpOnly: true,
+    sameSite: 'none',
+    secure: true
   });
   
   res.status(200).json({
