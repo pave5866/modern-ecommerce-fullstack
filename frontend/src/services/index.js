@@ -1,4 +1,12 @@
-import api, { productAPI, orderAPI, logAPI } from './api';
+import api, { 
+  productAPI, 
+  userAPI, 
+  orderAPI, 
+  logAPI, 
+  addressAPI, 
+  adminAPI, 
+  reviewAPI 
+} from './api';
 
 // API services
 const authAPI = {
@@ -10,4 +18,14 @@ const authAPI = {
   resetPassword: (data) => api.post('/auth/reset-password', data)
 };
 
-export { api, productAPI, authAPI, orderAPI, logAPI };
+export { 
+  api, 
+  productAPI, 
+  userAPI, 
+  authAPI, 
+  orderAPI, 
+  logAPI,
+  addressAPI,
+  adminAPI,
+  reviewAPI
+};
