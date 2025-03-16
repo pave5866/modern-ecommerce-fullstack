@@ -20,5 +20,5 @@
   Access-Control-Allow-Credentials = "true"
 
 [build]
-  command = "npm install && npm install react-hot-toast @tailwindcss/forms @tailwindcss/typography @tailwindcss/aspect-ratio postcss autoprefixer react-intersection-observer date-fns react-icons react-router-dom axios formik yup react-query recharts @headlessui/react clsx tailwind-merge --save && export NODE_OPTIONS=--max-old-space-size=4096 && CI=false npm run build"
+  command = "npm install && export NODE_OPTIONS=--max-old-space-size=4096 && CI=false npm run build"
   publish = "dist"
