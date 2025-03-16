@@ -44,6 +44,7 @@ export default function Login() {
   })
   const [errors, setErrors] = useState({})
   const [touched, setTouched] = useState({})
+  const [networkError, setNetworkError] = useState(null)
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -56,6 +57,11 @@ export default function Login() {
         ...prev,
         [name]: ''
       }))
+    }
+    
+    // Form değiştiğinde network hatası temizle
+    if (networkError) {
+      setNetworkError(null)
     }
   }
 
@@ -117,9 +123,15 @@ export default function Login() {
     
     if (!validateForm()) return
 
+    // Network hatası temizle
+    setNetworkError(null)
     setIsSubmitting(true)
+    
     try {
+      console.log('Login isteği başlatılıyor...')
       const response = await login({ ...formData, rememberMe })
+      console.log('Login yanıtı alındı:', response)
+      
       showToast.success('Başarıyla giriş yapıldı')
       
       // Admin kullanıcıları için /admin sayfasına yönlendir
@@ -135,6 +147,19 @@ export default function Login() {
       }
       navigate(redirectTo)
     } catch (error) {
+      console.error('Login hatası:', error)
+      
+      // Network hatasını ayıklayalım
+      if (error.message && error.message.includes('Network Error')) {
+        setNetworkError('Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.')
+      } else if (error.response?.status === 401) {
+        setNetworkError('E-posta veya şifre hatalı.')
+      } else if (error.response?.data?.message) {
+        setNetworkError(error.response.data.message)
+      } else {
+        setNetworkError(error.message || 'Giriş yapılamadı. Lütfen tekrar deneyin.')
+      }
+      
       showToast.error(error.message || 'Giriş yapılamadı')
     } finally {
       setIsSubmitting(false)
@@ -167,6 +192,20 @@ export default function Login() {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Hoşgeldiniz</h1>
             <p className="text-gray-600 dark:text-gray-400 text-sm">Devam etmek için giriş yapın</p>
           </div>
+
+          {/* Network Error Alert */}
+          {networkError && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-3 rounded-lg bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800/50"
+            >
+              <div className="flex items-start">
+                <ExclamationCircleIcon className="h-5 w-5 text-red-500 dark:text-red-400 mr-2 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-red-600 dark:text-red-300">{networkError}</p>
+              </div>
+            </motion.div>
+          )}
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -298,4 +337,4 @@ export default function Login() {
       </motion.div>
     </div>
   )
-} 
+}
