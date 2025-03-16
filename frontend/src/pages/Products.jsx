@@ -14,9 +14,6 @@ import {
   TagIcon
 } from '@heroicons/react/24/outline'
 
-// Doğrudan dummy verileri içe aktaralım
-import { DUMMY_DATA } from '../services/dummyData'
-
 const ITEMS_PER_PAGE = 15
 const DEBOUNCE_DELAY = 300 // 300ms debounce
 
@@ -141,9 +138,23 @@ export default function Products() {
     }
   }, [searchParams])
 
+  // Gerçek API'den kategorileri al
   const { data: categoriesData } = useQuery({
     queryKey: ['categories'],
-    queryFn: () => productAPI.getCategories(),
+    queryFn: async () => {
+      try {
+        console.log('Ürünler sayfası için kategoriler getiriliyor');
+        const response = await productAPI.getCategories();
+        console.log('Kategoriler API yanıtı:', { 
+          success: response?.success, 
+          count: response?.data?.length || 0 
+        });
+        return response;
+      } catch (error) {
+        console.error('Kategorileri getirme hatası:', error);
+        throw error;
+      }
+    },
     staleTime: 1000 * 60 * 5, // 5 dakika
     cacheTime: 1000 * 60 * 30, // 30 dakika
   })
@@ -153,6 +164,7 @@ export default function Products() {
     slug: category.toLowerCase().replace(/ /g, '-')
   })) : []
 
+  // Gerçek API'den ürünleri al
   const {
     data,
     isLoading,
@@ -168,33 +180,33 @@ export default function Products() {
       console.log('Ürünler getiriliyor, kategori:', appliedFilters.category);
       
       try {
-        // Doğrudan dummy verileri kullanalım
-        const allProducts = DUMMY_DATA.products;
+        let response;
         
-        // Kategori filtresi uygulayalım
-        let filteredProducts = allProducts;
+        // Kategori filtresi varsa, o kategoriye göre ürünleri getir
         if (appliedFilters.category) {
-          const normalizedCategory = appliedFilters.category.toLowerCase().trim();
-          filteredProducts = allProducts.filter(product => {
-            const productCategory = product.category.toLowerCase().trim();
-            return productCategory === normalizedCategory || 
-                  productCategory.replace(/ /g, '-') === normalizedCategory;
-          });
+          const categoryName = categories.find(cat => cat.slug === appliedFilters.category)?.name || appliedFilters.category;
+          response = await productAPI.getByCategory(
+            categoryName, 
+            ITEMS_PER_PAGE, 
+            pageParam * ITEMS_PER_PAGE
+          );
+        } else {
+          // Tüm ürünleri getir
+          response = await productAPI.getAll(ITEMS_PER_PAGE);
         }
         
-        // Sayfalama için ürünleri bölelim
-        const start = pageParam * ITEMS_PER_PAGE;
-        const end = start + ITEMS_PER_PAGE;
-        const paginatedProducts = filteredProducts.slice(start, end);
-        
-        console.log('Dummy verilerden ürünler başarıyla getirildi:', paginatedProducts.length);
+        console.log('Ürünler API yanıtı:', { 
+          success: response?.success, 
+          count: response?.data?.length || 0,
+          total: response?.total || 0
+        });
         
         return {
-          success: true,
-          data: paginatedProducts,
-          skip: start,
+          success: response.success,
+          data: response.data || [],
+          skip: pageParam * ITEMS_PER_PAGE,
           limit: ITEMS_PER_PAGE,
-          total: filteredProducts.length
+          total: response.total || (response.data?.length || 0)
         };
       } catch (error) {
         console.error('Ürünleri getirme hatası:', error);
