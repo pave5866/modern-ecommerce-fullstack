@@ -4,6 +4,11 @@ import { logger } from '../utils'
 // API URL - backend URL'i
 const API_URL = 'https://modern-ecommerce-fullstack.onrender.com/api';
 
+// Log gönderimini kontrol etmek için değişken
+let isLoggingEnabled = false;
+let pendingLogs = [];
+let isLogSendingActive = false;
+
 // Dummy veri kullanımını kapatıyoruz
 const USE_DUMMY_DATA = false;
 
@@ -23,11 +28,10 @@ export const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
-    // İsteği loglama
-    logger.info(`API isteği yapılıyor: ${config.method?.toUpperCase()} ${config.url}`, { 
-      baseURL: config.baseURL,
-      headers: config.headers
-    });
+    // İsteği log et (ama /logs endpoint'ine gönderme)
+    if (config.url !== '/logs') {
+      console.log(`API isteği: ${config.method?.toUpperCase()} ${config.url}`);
+    }
     
     // LocalStorage'dan token alma
     const token = localStorage.getItem('token')
@@ -38,7 +42,7 @@ api.interceptors.request.use(
     return config
   },
   (error) => {
-    logger.error('API request error:', error.message);
+    console.error('API request error:', error.message);
     return Promise.reject(error)
   }
 )
@@ -46,14 +50,19 @@ api.interceptors.request.use(
 // Response interceptor
 api.interceptors.response.use(
   (response) => {
-    logger.info(`API yanıtı alındı: ${response.status} ${response.config.url}`);
+    // Yalnızca /logs dışındaki yanıtları loglama
+    if (!response.config.url.includes('/logs')) {
+      console.log(`API yanıtı: ${response.status} ${response.config.url}`);
+    }
     return response;
   },
   async (error) => {
-    logger.error(`API hata yanıtı: ${error.message}`, {
-      url: error.config?.url,
-      method: error.config?.method
-    });
+    if (!error.config?.url.includes('/logs')) {
+      console.error(`API hata yanıtı: ${error.message}`, {
+        url: error.config?.url,
+        method: error.config?.method
+      });
+    }
     
     // 401 hatası durumunda logout
     if (error.response?.status === 401) {
@@ -69,9 +78,9 @@ api.interceptors.response.use(
 export const productAPI = {
   getAll: async (limit) => {
     try {
-      logger.info('getAll çağrıldı, limit:', limit);
+      console.log('getAll çağrıldı, limit:', limit);
       const response = await api.get(`/products${limit ? `?limit=${limit}` : ''}`);
-      logger.info('getAll yanıtı alındı:', { 
+      console.log('getAll yanıtı alındı:', { 
         status: response?.status,
         success: response?.data?.success,
         dataCount: response?.data?.data?.length || 0 
@@ -85,13 +94,13 @@ export const productAPI = {
       }
       return { success: false, data: [] };
     } catch (error) {
-      logger.error('Products fetch error:', error.message);
+      console.error('Products fetch error:', error.message);
       return { success: false, data: [], error: error.message };
     }
   },
   getById: async (id) => {
     try {
-      logger.info('getById çağrıldı, id:', id);
+      console.log('getById çağrıldı, id:', id);
       
       const response = await api.get(`/products/${id}`);
       if (response?.data?.success) {
@@ -106,7 +115,7 @@ export const productAPI = {
         error: response?.data?.message || 'Ürün bulunamadı'
       };
     } catch (error) {
-      logger.error('Ürün detayı getirme hatası:', error.message);
+      console.error('Ürün detayı getirme hatası:', error.message);
       return { 
         success: false, 
         product: null,
@@ -127,7 +136,7 @@ export const productAPI = {
   delete: (id) => api.delete(`/products/${id}`),
   getCategories: async () => {
     try {
-      logger.info('getCategories çağrıldı');
+      console.log('getCategories çağrıldı');
       
       const response = await api.get('/products/categories');
       if (response?.data?.success) {
@@ -138,7 +147,7 @@ export const productAPI = {
       }
       return { success: false, data: [] };
     } catch (error) {
-      logger.error('Categories fetch error:', error.message);
+      console.error('Categories fetch error:', error.message);
       return { success: false, data: [], error: error.message };
     }
   },
@@ -153,16 +162,16 @@ export const productAPI = {
       }
       return { success: false, data: [] };
     } catch (error) {
-      logger.error('Search error:', { error: error.message });
+      console.error('Search error:', { error: error.message });
       return { success: false, data: [] };
     }
   },
   getByCategory: async (category, limit = 15, skip = 0) => {
     try {
-      logger.info('getByCategory çağrıldı, category:', category);
+      console.log('getByCategory çağrıldı, category:', category);
       
       if (!category) {
-        logger.warn('Kategori belirtilmeden getByCategory çağrıldı');
+        console.warn('Kategori belirtilmeden getByCategory çağrıldı');
         return { success: false, data: [], error: 'Kategori belirtilmedi' };
       }
       
@@ -180,7 +189,7 @@ export const productAPI = {
         total: response?.data?.total || 0
       };
     } catch (error) {
-      logger.error('Kategori ürünleri getirme hatası:', error.message, 'category:', category);
+      console.error('Kategori ürünleri getirme hatası:', error.message, 'category:', category);
       return { 
         success: false, 
         data: [], 
@@ -195,7 +204,7 @@ export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: async (data) => {
     try {
-      logger.info('Login isteği yapılıyor', { email: data.email });
+      console.log('Login isteği yapılıyor', { email: data.email });
       
       const response = await api.post('/auth/login', data, {
         headers: {
@@ -203,10 +212,10 @@ export const authAPI = {
         }
       });
       
-      logger.info('Login yanıtı alındı', { status: response.status });
+      console.log('Login yanıtı alındı', { status: response.status });
       return response;
     } catch (error) {
-      logger.error('Login hatası:', error.message);
+      console.error('Login hatası:', error.message);
       throw error;
     }
   },
@@ -221,7 +230,7 @@ export const orderAPI = {
   create: async (orderData) => {
     try {
       if (!orderData.shippingAddress || !orderData.shippingAddress.fullName) {
-        logger.error('Sipariş oluşturma hatası:', { error: 'shippingAddress.fullName alanı gerekli' });
+        console.error('Sipariş oluşturma hatası:', { error: 'shippingAddress.fullName alanı gerekli' });
         return {
           success: false,
           error: 'Teslimat adresi bilgileriniz eksik. Lütfen adres bilgilerinizi kontrol edin.'
@@ -236,7 +245,7 @@ export const orderAPI = {
         };
       }
       
-      logger.error('Sipariş oluşturma hatası:', { 
+      console.error('Sipariş oluşturma hatası:', { 
         status: response?.status, 
         error: response?.data?.error, 
         message: response?.data?.message
@@ -248,7 +257,7 @@ export const orderAPI = {
         status: response?.status
       };
     } catch (error) {
-      logger.error('Sipariş oluşturma hatası:', { 
+      console.error('Sipariş oluşturma hatası:', { 
         error: error.message, 
         status: error.response?.status,
         data: error.response?.data
@@ -277,7 +286,7 @@ export const orderAPI = {
         error: response?.data?.message || 'Siparişler alınamadı'
       }
     } catch (error) {
-      logger.error('Sipariş getirme hatası:', { error: error.message })
+      console.error('Sipariş getirme hatası:', { error: error.message })
       return {
         success: false,
         orders: [],
@@ -290,7 +299,7 @@ export const orderAPI = {
       const response = await api.get(`/orders/${id}`)
       return response.data
     } catch (error) {
-      logger.error('Sipariş getirme hatası:', { error: error.message })
+      console.error('Sipariş getirme hatası:', { error: error.message })
       throw error
     }
   },
@@ -299,7 +308,7 @@ export const orderAPI = {
       const response = await api.delete(`/orders/${orderId}`)
       return response.data
     } catch (error) {
-      logger.error('Sipariş silme hatası:', { error: error.message })
+      console.error('Sipariş silme hatası:', { error: error.message })
       throw error
     }
   },
@@ -308,7 +317,7 @@ export const orderAPI = {
       const response = await api.delete('/orders')
       return response.data
     } catch (error) {
-      logger.error('Tüm siparişleri silme hatası:', { error: error.message })
+      console.error('Tüm siparişleri silme hatası:', { error: error.message })
       throw error
     }
   },
@@ -327,7 +336,7 @@ export const orderAPI = {
         error: response?.data?.message || 'Siparişler alınamadı'
       }
     } catch (error) {
-      logger.error('Kullanıcı siparişleri getirme hatası:', { error: error.message })
+      console.error('Kullanıcı siparişleri getirme hatası:', { error: error.message })
       return {
         success: false,
         data: [],
@@ -354,7 +363,7 @@ export const addressAPI = {
         error: response?.data?.message || 'Adresler alınamadı'
       }
     } catch (error) {
-      logger.error('Adres getirme hatası:', { error: error.message })
+      console.error('Adres getirme hatası:', { error: error.message })
       return {
         success: false,
         addresses: [],
@@ -367,7 +376,7 @@ export const addressAPI = {
       const response = await api.post('/addresses', addressData)
       return response.data
     } catch (error) {
-      logger.error('Adres oluşturma hatası:', { error: error.message })
+      console.error('Adres oluşturma hatası:', { error: error.message })
       return {
         success: false,
         error: error?.response?.data?.message || error.message
@@ -379,7 +388,7 @@ export const addressAPI = {
       const response = await api.put(`/addresses/${addressId}`, addressData)
       return response.data
     } catch (error) {
-      logger.error('Adres güncelleme hatası:', { error: error.message })
+      console.error('Adres güncelleme hatası:', { error: error.message })
       return {
         success: false,
         error: error?.response?.data?.message || error.message
@@ -391,7 +400,7 @@ export const addressAPI = {
       const response = await api.delete(`/addresses/${addressId}`)
       return response.data
     } catch (error) {
-      logger.error('Adres silme hatası:', { error: error.message })
+      console.error('Adres silme hatası:', { error: error.message })
       return {
         success: false,
         error: error?.response?.data?.message || error.message
@@ -414,7 +423,7 @@ export const userAPI = {
         };
       }
       
-      logger.error('Kullanıcı API hatası:', { response: response?.data });
+      console.error('Kullanıcı API hatası:', { response: response?.data });
       
       return {
         success: false,
@@ -422,7 +431,7 @@ export const userAPI = {
         error: response?.data?.message || 'Kullanıcılar alınamadı'
       };
     } catch (error) {
-      logger.error('Kullanıcı getirme hatası:', { error: error.message });
+      console.error('Kullanıcı getirme hatası:', { error: error.message });
       return {
         success: false,
         data: { users: [], pagination: { total: 0, pages: 1 } },
@@ -451,7 +460,7 @@ export const userAPI = {
       };
     } catch (error) {
       const errorMessage = error?.response?.data?.message || error.message || 'Rol güncelleme sırasında bir hata oluştu';
-      logger.error('Rol güncelleme hatası:', { errorMessage });
+      console.error('Rol güncelleme hatası:', { errorMessage });
       
       return {
         success: false,
@@ -475,7 +484,7 @@ export const userAPI = {
         error: response?.data?.message || 'Profil bilgileri alınamadı'
       }
     } catch (error) {
-      logger.error('Profil bilgileri getirme hatası:', { error: error.message })
+      console.error('Profil bilgileri getirme hatası:', { error: error.message })
       return {
         success: false,
         user: {},
@@ -488,7 +497,7 @@ export const userAPI = {
       const response = await api.put('/users/profile', userData)
       return response.data
     } catch (error) {
-      logger.error('Profil güncelleme hatası:', { error: error.message })
+      console.error('Profil güncelleme hatası:', { error: error.message })
       return {
         success: false,
         error: error?.response?.data?.message || error.message
@@ -500,7 +509,7 @@ export const userAPI = {
       const response = await api.put('/users/password', passwordData)
       return response.data
     } catch (error) {
-      logger.error('Şifre güncelleme hatası:', { error: error.message })
+      console.error('Şifre güncelleme hatası:', { error: error.message })
       return {
         success: false,
         error: error?.response?.data?.message || error.message
@@ -516,7 +525,7 @@ export const settingsAPI = {
       const response = await api.get('/settings')
       return response.data
     } catch (error) {
-      logger.error('Settings fetch error:', { error: error.message })
+      console.error('Settings fetch error:', { error: error.message })
       return { success: false, data: {} }
     }
   },
@@ -525,7 +534,7 @@ export const settingsAPI = {
       const response = await api.put('/settings', data)
       return response.data
     } catch (error) {
-      logger.error('Settings update error:', { error: error.message })
+      console.error('Settings update error:', { error: error.message })
       return { success: false, error: error.message }
     }
   }
@@ -533,13 +542,10 @@ export const settingsAPI = {
 
 // Log endpoints
 export const logAPI = {
+  // Tamamen devre dışı bırakılmış log sistemi
   sendLog: async (logData) => {
-    try {
-      const response = await api.post('/logs', logData)
-      return response.data
-    } catch (error) {
-      // Burada logger kullanmıyoruz çünkü sonsuz döngüye girebilir
-      return { success: false }
-    }
+    // Bu isteği yapmıyoruz, bunun yerine konsola yazdırıyoruz
+    console.log("Log istek", logData);
+    return { success: true }
   }
 }
