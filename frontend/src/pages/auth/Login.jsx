@@ -134,24 +134,38 @@ export default function Login() {
       const response = await login({ ...formData, rememberMe });
       logger.info('Login yanıtı alındı:', { status: response?.status });
       
-      showToast.success('Başarıyla giriş yapıldı');
+      // Yanıt kontrol edelim ve güvenli bir yapı oluşturalım
+      let userData;
       
-      // Admin kullanıcıları için /admin sayfasına yönlendir
-      if (response?.data?.data?.user?.role === 'admin') {
-        navigate('/admin');
-        return;
+      if (response?.data?.success && response?.data?.data?.user) {
+        userData = response.data.data.user;
+      } else if (response?.data?.user) {
+        userData = response.data.user;
       }
       
-      const redirectTo = location.state?.from || '/';
-      const message = location.state?.message;
-      if (message) {
-        showToast.info(message);
+      if (userData) {
+        showToast.success('Başarıyla giriş yapıldı');
+        
+        // Admin kullanıcıları için /admin sayfasına yönlendir
+        if (userData.role === 'admin') {
+          navigate('/admin');
+          return;
+        }
+        
+        const redirectTo = location.state?.from || '/';
+        const message = location.state?.message;
+        if (message) {
+          showToast.info(message);
+        }
+        navigate(redirectTo);
+      } else {
+        throw new Error('Kullanıcı bilgileri alınamadı');
       }
-      navigate(redirectTo);
     } catch (error) {
       logger.error('Login hatası:', { 
         message: error.message,
-        status: error.response?.status
+        status: error.response?.status,
+        data: error.response?.data
       });
       
       // Network hatasını ayıklayalım
