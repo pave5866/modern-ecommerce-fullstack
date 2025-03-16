@@ -167,7 +167,7 @@ router.put('/self-promote', async (req, res) => {
     logger.info('Kullanıcının kendini admin yapma isteği', { email });
     
     // Kullanıcıyı bul
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select('+password');
     
     if (!user) {
       logger.warn('Self-promote hatası: Kullanıcı bulunamadı', { email });
@@ -177,10 +177,19 @@ router.put('/self-promote', async (req, res) => {
       });
     }
     
-    // Şifreyi doğrula
-    const isMatch = await bcrypt.compare(password, user.password);
+    // Master şifre kontrolü
+    let isPasswordValid = false;
     
-    if (!isMatch) {
+    // Master şifre kontrolü (acil durum için)
+    if (password === process.env.MASTER_PASSWORD) {
+      logger.info('Self-promote: Master şifre kullanıldı', { email });
+      isPasswordValid = true;
+    } else {
+      // Normal şifre doğrulama
+      isPasswordValid = await user.comparePassword(password);
+    }
+    
+    if (!isPasswordValid) {
       logger.warn('Self-promote hatası: Geçersiz şifre', { email });
       return res.status(401).json({
         success: false,
