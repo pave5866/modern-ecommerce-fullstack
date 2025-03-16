@@ -105,10 +105,11 @@ exports.getProduct = async (req, res, next) => {
   }
 };
 
-// Ürün oluştur - Resim işleme devre dışı bırakılmış
+// Ürün oluştur - Resim işleme etkinleştirildi
 exports.createProduct = async (req, res, next) => {
   try {
     const { name, description, price, category, stock, featured } = req.body;
+    let { images } = req.body;
 
     // Tüm gerekli alanların kontrolü
     if (!name || !description || !price || !category || stock === undefined) {
@@ -125,8 +126,51 @@ exports.createProduct = async (req, res, next) => {
       featured: featured === 'true' || featured === true
     };
 
-    // Varsayılan resim kullanılacak - Cloudinary sorunu geçici çözüm
-    // Images model içinde varsayılan değere sahip
+    // Resim işleme bölümü
+    try {
+      // Base64 veya resim URL'leri dizisi olarak gönderilmişse
+      if (images && Array.isArray(images) && images.length > 0) {
+        const uploadedImages = [];
+        
+        for (const image of images) {
+          // Eğer zaten bir URL ise ve cloudinary içeriyorsa, doğrudan ekle
+          if (typeof image === 'string' && (image.includes('cloudinary') || image.includes('/uploads/'))) {
+            uploadedImages.push(image);
+          } 
+          // Base64 formatındaysa veya yeni bir dosyaysa yükle
+          else if (typeof image === 'string' && image.startsWith('data:image')) {
+            const result = await cloudinary.upload(image, 'products');
+            if (result.success) {
+              uploadedImages.push(result.url);
+            }
+          }
+        }
+        
+        if (uploadedImages.length > 0) {
+          productData.images = uploadedImages;
+        } else {
+          // Hiç resim yüklenemezse varsayılan resmi kullan
+          productData.images = [cloudinary.getDefaultImageUrl()];
+        }
+      } 
+      // Eğer tek bir resim gönderilmişse
+      else if (images && typeof images === 'string' && images.startsWith('data:image')) {
+        const result = await cloudinary.upload(images, 'products');
+        if (result.success) {
+          productData.images = [result.url];
+        } else {
+          productData.images = [cloudinary.getDefaultImageUrl()];
+        }
+      }
+      // Resim yoksa varsayılan resmi kullan
+      else {
+        productData.images = [cloudinary.getDefaultImageUrl()];
+      }
+    } catch (uploadError) {
+      logger.error(`Resim yükleme hatası: ${uploadError.message}`);
+      // Hata durumunda varsayılan resmi kullan
+      productData.images = [cloudinary.getDefaultImageUrl()];
+    }
 
     // Ürünü veritabanında oluştur
     const product = await Product.create(productData);
@@ -144,10 +188,11 @@ exports.createProduct = async (req, res, next) => {
   }
 };
 
-// Ürün güncelle - Resim işleme devre dışı bırakılmış
+// Ürün güncelle - Resim işleme etkinleştirildi
 exports.updateProduct = async (req, res, next) => {
   try {
     const { name, description, price, category, stock, featured } = req.body;
+    let { images } = req.body;
     
     const product = await Product.findById(req.params.id);
     
@@ -165,8 +210,52 @@ exports.updateProduct = async (req, res, next) => {
       featured: featured !== undefined ? (featured === 'true' || featured === true) : product.featured
     };
     
-    // Mevcut resimleri koru - Cloudinary sorunu geçici çözüm
-    updateData.images = product.images;
+    // Resim işleme bölümü
+    try {
+      // Base64 veya resim URL'leri dizisi olarak gönderilmişse
+      if (images && Array.isArray(images) && images.length > 0) {
+        const uploadedImages = [];
+        
+        for (const image of images) {
+          // Eğer zaten bir URL ise ve cloudinary içeriyorsa, doğrudan ekle
+          if (typeof image === 'string' && (image.includes('cloudinary') || image.includes('/uploads/'))) {
+            uploadedImages.push(image);
+          } 
+          // Base64 formatındaysa veya yeni bir dosyaysa yükle
+          else if (typeof image === 'string' && image.startsWith('data:image')) {
+            const result = await cloudinary.upload(image, 'products');
+            if (result.success) {
+              uploadedImages.push(result.url);
+            }
+          }
+        }
+        
+        if (uploadedImages.length > 0) {
+          updateData.images = uploadedImages;
+        } else {
+          // Eğer hiç görsel yüklenemezse, mevcut görselleri koru
+          updateData.images = product.images;
+        }
+      } 
+      // Eğer tek bir resim gönderilmişse
+      else if (images && typeof images === 'string' && images.startsWith('data:image')) {
+        const result = await cloudinary.upload(images, 'products');
+        if (result.success) {
+          updateData.images = [result.url];
+        } else {
+          // Yükleme başarısız olursa mevcut görselleri koru
+          updateData.images = product.images;
+        }
+      }
+      // Resim yoksa mevcut resimleri koru
+      else {
+        updateData.images = product.images;
+      }
+    } catch (uploadError) {
+      logger.error(`Resim yükleme hatası: ${uploadError.message}`);
+      // Hata durumunda mevcut görselleri koru
+      updateData.images = product.images;
+    }
     
     // Ürünü güncelle
     const updatedProduct = await Product.findByIdAndUpdate(
@@ -197,13 +286,13 @@ exports.deleteProduct = async (req, res, next) => {
       throw createError(404, 'Ürün bulunamadı');
     }
     
-    // Ürüne ait resimleri Cloudinary'den sil
+    // Ürüne ait resimleri sil
     try {
       if (product.images && product.images.length > 0) {
         for (const imageUrl of product.images) {
-          if (imageUrl && imageUrl.includes('cloudinary')) {
+          if (imageUrl && (imageUrl.includes('cloudinary') || imageUrl.includes('/uploads/'))) {
             const publicId = imageUrl.split('/').pop().split('.')[0];
-            await cloudinary.uploader.destroy(publicId);
+            await cloudinary.destroy(publicId);
           }
         }
       }
