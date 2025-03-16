@@ -3,30 +3,8 @@ const createError = require('http-errors');
 const path = require('path');
 const parser = require('datauri/parser');
 const AppError = require('../utils/appError');
-const cloudinary = require('../config/cloudinary');
 const logger = require('../utils/logger');
-
-// Buffer'ı DataURI'ye dönüştür
-const formatBuffer = (file) => {
-  try {
-    if (!file || !file.buffer || !file.originalname) {
-      throw new Error('Geçersiz dosya formatı');
-    }
-    logger.debug('Buffer dönüştürme başladı:', {
-      fileName: file.originalname,
-      size: file.size,
-      mimeType: file.mimetype
-    });
-    const extName = path.extname(file.originalname).toString();
-    const datauri = new parser();
-    const result = datauri.format(extName, file.buffer).content;
-    logger.debug('Buffer dönüştürme başarılı');
-    return result;
-  } catch (error) {
-    logger.error('Buffer dönüştürme hatası:', error);
-    throw new AppError('Dosya formatı dönüştürme hatası: ' + error.message, 500);
-  }
-};
+const { uploadImage } = require('../utils/imageUpload');
 
 // Buffer'ı base64'e dönüştürme yardımcı fonksiyonu
 const bufferToBase64 = (buffer, mimetype) => {
@@ -77,24 +55,6 @@ exports.getProduct = async (req, res, next) => {
   }
 };
 
-// Basit test için: dosya içeriğini diskten yükleme
-const uploadImageToCloudinary = async (fileStr) => {
-  try {
-    // En basit konfigürasyon ile upload
-    const uploadOptions = {
-      unique_filename: true,
-      overwrite: false
-    };
-
-    // Cloudinary'ye yükle
-    const result = await cloudinary.uploader.upload(fileStr, uploadOptions);
-    return result.secure_url;
-  } catch (error) {
-    logger.error('Cloudinary yükleme hatası:', error);
-    throw new Error(`Cloudinary yükleme hatası: ${error.message}`);
-  }
-};
-
 // Ürün oluştur - Tamamen yeniden düzenlendi
 exports.createProduct = async (req, res, next) => {
   try {
@@ -108,15 +68,7 @@ exports.createProduct = async (req, res, next) => {
       images: []
     };
 
-    // Cloudinary yapılandırma kontrolü
-    if (!process.env.CLOUDINARY_CLOUD_NAME || 
-        !process.env.CLOUDINARY_API_KEY || 
-        !process.env.CLOUDINARY_API_SECRET) {
-      logger.error('Cloudinary yapılandırma bilgileri eksik!');
-      throw new AppError('Resim yükleme servisi yapılandırması eksik', 500);
-    }
-
-    // Resimleri Cloudinary'ye yükle
+    // Resimleri yükle
     if (req.files && req.files.length > 0) {
       logger.info('Resim yükleme başladı:', { fileCount: req.files.length });
       
@@ -124,19 +76,18 @@ exports.createProduct = async (req, res, next) => {
         // Her dosya için ayrı yükleme işlemi gerçekleştir
         for (const file of req.files) {
           // Base64 formatına dönüştür
-          const fileStr = bufferToBase64(file.buffer, file.mimetype);
+          const fileDataUrl = bufferToBase64(file.buffer, file.mimetype);
           
-          // Cloudinary'ye yükle (basitleştirilmiş yöntem)
-          const imageUrl = await uploadImageToCloudinary(fileStr);
+          // Resmi Cloudinary'ye yükle
+          const imageUrl = await uploadImage(fileDataUrl);
           
           // Başarılı yüklenen resmi listeye ekle
           productData.images.push(imageUrl);
-          logger.info('Resim başarıyla yüklendi:', { url: imageUrl });
         }
         
         logger.info('Tüm resimler yüklendi:', { imageCount: productData.images.length });
       } catch (error) {
-        logger.error('Resim yükleme genel hatası:', { error: error.message });
+        logger.error('Resim yükleme hatası:', { error: error.message });
         throw new AppError(`Resim yükleme hatası: ${error.message}`, 500);
       }
     }
@@ -156,7 +107,7 @@ exports.createProduct = async (req, res, next) => {
   }
 };
 
-// Ürün güncelle - Güncellendi
+// Ürün güncelle 
 exports.updateProduct = async (req, res, next) => {
   try {
     logger.info('Ürün güncelleme başladı:', { productId: req.params.id });
@@ -195,15 +146,14 @@ exports.updateProduct = async (req, res, next) => {
       // Her dosyayı tek tek işle
       for (const file of req.files) {
         // Base64 formatına dönüştür
-        const fileStr = bufferToBase64(file.buffer, file.mimetype);
+        const fileDataUrl = bufferToBase64(file.buffer, file.mimetype);
         
         try {
-          // Cloudinary'ye yükle (basitleştirilmiş yöntem)
-          const imageUrl = await uploadImageToCloudinary(fileStr);
+          // Resmi Cloudinary'ye yükle
+          const imageUrl = await uploadImage(fileDataUrl);
           
           // Başarılı yüklenen resmi listeye ekle
           imagesToKeep.push(imageUrl);
-          logger.info('Yeni resim yüklendi:', { url: imageUrl });
         } catch (uploadError) {
           logger.error('Resim yükleme hatası:', { error: uploadError.message });
           throw new AppError(`Resim yükleme hatası: ${uploadError.message}`, 500);
