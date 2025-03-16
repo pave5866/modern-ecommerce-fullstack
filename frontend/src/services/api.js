@@ -1,5 +1,4 @@
 import axios from 'axios'
-import { logger } from '../utils'
 
 // API URL - backend URL'i
 const API_URL = 'https://modern-ecommerce-fullstack.onrender.com/api';
@@ -18,10 +17,9 @@ export const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    'X-Requested-With': 'XMLHttpRequest',
-    'Access-Control-Allow-Origin': '*'
+    'X-Requested-With': 'XMLHttpRequest'
   },
-  withCredentials: false, // CORS sorunları için false
+  withCredentials: true, // CORS sorunları için true (credentials ile çalışacak şekilde)
   timeout: 30000 // 30 saniye timeout
 })
 
@@ -206,10 +204,13 @@ export const authAPI = {
     try {
       console.log('Login isteği yapılıyor', { email: data.email });
       
-      const response = await api.post('/auth/login', data, {
+      // CORS hatalarını önlemek için özel yapılandırma
+      const response = await axios.post(`${API_URL}/auth/login`, data, {
         headers: {
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        withCredentials: true
       });
       
       console.log('Login yanıtı alındı', { status: response.status });
