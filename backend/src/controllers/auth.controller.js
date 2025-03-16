@@ -38,7 +38,7 @@ const createSendToken = (user, statusCode, req, res) => {
   });
 };
 
-// Register
+// Register - Düzeltilmiş
 exports.register = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
@@ -46,10 +46,10 @@ exports.register = async (req, res, next) => {
     logger.info('Register isteği alındı:', { email });
 
     // Email kontrolü
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       logger.warn('Email zaten kullanımda:', { email });
-      return res.status(400).json({
+      return res.status(409).json({  // 400 yerine 409 Conflict
         success: false,
         message: 'Bu email adresi zaten kullanımda'
       });
@@ -60,7 +60,7 @@ exports.register = async (req, res, next) => {
     // Yeni kullanıcı oluştur
     const user = await User.create({
       name,
-      email,
+      email: email.toLowerCase(),  // Email'i küçük harfe çevir
       password
     });
 
@@ -69,6 +69,15 @@ exports.register = async (req, res, next) => {
     createSendToken(user, 201, req, res);
   } catch (error) {
     logger.error('Kullanıcı kaydı hatası:', { error: error.message });
+    
+    // MongoDB duplicate key hatası
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'Bu email adresi zaten kullanımda'
+      });
+    }
+    
     next(error);
   }
 };
@@ -89,8 +98,8 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // Kullanıcı kontrolü
-    const user = await User.findOne({ email }).select('+password');
+    // Kullanıcı kontrolü - email'i küçük harfe çevir
+    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
     
     if (!user) {
       logger.warn('Kullanıcı bulunamadı', { email });
@@ -174,7 +183,7 @@ exports.forgotPassword = async (req, res, next) => {
     const { email } = req.body;
 
     // Get user
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) {
       throw createError(404, 'Bu email adresine sahip kullanıcı bulunamadı');
     }
@@ -272,16 +281,21 @@ exports.updateProfile = async (req, res, next) => {
 
     // Email değiştiriliyorsa, yeni email'in başka bir kullanıcı tarafından kullanılmadığından emin ol
     if (email && email !== req.user.email) {
-      const existingUser = await User.findOne({ email });
+      const existingUser = await User.findOne({ email: email.toLowerCase() });
       if (existingUser) {
         throw createError(400, 'Bu email adresi zaten kullanılıyor');
       }
     }
 
     // Kullanıcıyı güncelle
+    const updateData = { name };
+    if (email) {
+      updateData.email = email.toLowerCase();
+    }
+    
     const user = await User.findByIdAndUpdate(
       req.user._id,
-      { name, email },
+      updateData,
       { new: true, runValidators: true }
     );
 
