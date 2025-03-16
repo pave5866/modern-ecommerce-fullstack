@@ -9,12 +9,29 @@ require('dotenv').config();
 
 const app = express();
 
-// CORS ayarları - en güçlü hali
+// İzin verilen originler
+const allowedOrigins = [
+  'https://frabjous-daifuku-431360.netlify.app',
+  'https://modern-ecommerce-fullstack.onrender.com',
+  'http://localhost:3000',
+  'http://localhost:5000',
+  'http://localhost:5173'
+];
+
+// CORS yapılandırması
 app.use(cors({
-    origin: '*', // Tüm originlere izin ver
-    credentials: false, // withCredentials false olduğu için bunu da false yapıyoruz
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+  origin: function (origin, callback) {
+    // origin null olabilir (örn. REST client, Postman gibi araçlar)
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      logger.warn(`CORS hatası: Origin izin verilmedi: ${origin}`);
+      callback(null, true); // Geliştirme aşamasında yine de izin verelim
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
 
 // CORS Preflight için OPTIONS isteklerini ele al
@@ -22,38 +39,38 @@ app.options('*', cors());
 
 // Ek CORS middleware - tüm isteklere CORS header'ları ekle
 app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  // İzin verilen originlere özel header ekle, diğerlerine '*' ata
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
     res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-    res.header('Access-Control-Allow-Credentials', 'false');
-    
-    // OPTIONS isteklerini hemen yanıtla
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-    
-    next();
+  }
+  
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Debug amaçlı istekleri loglama
+  if (req.method === 'OPTIONS') {
+    logger.info('OPTIONS isteği:', { 
+      origin: req.headers.origin,
+      method: req.method,
+      path: req.path
+    });
+    return res.status(200).end();
+  }
+  
+  next();
 });
 
 // Kök API endpoint'i
 app.get('/api', (req, res) => {
   res.json({
     success: true,
-    message: 'Modern E-Commerce API',
+    message: 'API çalışıyor',
     version: '1.0.0',
-    endpoints: [
-      '/api/products',
-      '/api/products/categories',
-      '/api/users',
-      '/api/auth',
-      '/api/admin',
-      '/api/orders',
-      '/api/addresses',
-      '/api/coupons',
-      '/api/settings',
-      '/api/dashboard',
-      '/api/logs'
-    ]
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -97,7 +114,7 @@ app.use('/api/users', require('./routes/user.routes'));
 app.use('/api/settings', require('./routes/settings.routes'));
 app.use('/api/dashboard', require('./routes/dashboard.routes'));
 app.use('/api/logs', require('./routes/log.routes'));
-app.use('/api/admin', require('./routes/admin.routes')); // Yeni admin route'ları eklendi
+app.use('/api/admin', require('./routes/admin.routes')); 
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -131,11 +148,6 @@ process.on('unhandledRejection', (err) => {
     type: 'unhandledRejection',
     message: err.message,
     stack: err.stack
-  });
-  
-  // Uygulama güvenli bir şekilde kapatılmalı
-  server.close(() => {
-    process.exit(1);
   });
 });
 
