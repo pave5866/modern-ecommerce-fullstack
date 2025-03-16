@@ -33,7 +33,7 @@ exports.getProduct = async (req, res, next) => {
   }
 };
 
-// Ürün oluştur - Streaming yöntemi kullanarak
+// Ürün oluştur - Buffer -> Base64 ile yükleme
 exports.createProduct = async (req, res, next) => {
   try {
     // Ürün verilerini hazırla
@@ -46,15 +46,15 @@ exports.createProduct = async (req, res, next) => {
       images: []
     };
 
-    // Resimleri yükle - Stream yöntemi ile
+    // Resimleri yükle
     if (req.files && req.files.length > 0) {
       logger.info('Resim yükleme başladı:', { fileCount: req.files.length });
       
       try {
         // Her dosya için ayrı yükleme işlemi gerçekleştir
         for (const file of req.files) {
-          // Buffer doğrudan stream olarak yükle
-          const imageUrl = await uploadImageBuffer(file.buffer);
+          // Buffer'ı doğrudan Cloudinary'ye yükle
+          const imageUrl = await uploadImageBuffer(file.buffer, file.mimetype);
           
           // Başarılı yüklenen resmi listeye ekle
           productData.images.push(imageUrl);
@@ -82,7 +82,7 @@ exports.createProduct = async (req, res, next) => {
   }
 };
 
-// Ürün güncelle - Stream yöntemi ile
+// Ürün güncelle
 exports.updateProduct = async (req, res, next) => {
   try {
     logger.info('Ürün güncelleme başladı:', { productId: req.params.id });
@@ -114,15 +114,15 @@ exports.updateProduct = async (req, res, next) => {
       }
     }
     
-    // Yeni yüklenen resimleri işle - Stream yöntemi ile
+    // Yeni yüklenen resimleri işle
     if (req.files && req.files.length > 0) {
       logger.info('Yeni resim yükleme başladı:', { fileCount: req.files.length });
       
       // Her dosyayı tek tek işle
       for (const file of req.files) {
         try {
-          // Buffer doğrudan stream olarak yükle
-          const imageUrl = await uploadImageBuffer(file.buffer);
+          // Buffer'ı doğrudan Cloudinary'ye yükle
+          const imageUrl = await uploadImageBuffer(file.buffer, file.mimetype);
           
           // Başarılı yüklenen resmi listeye ekle
           imagesToKeep.push(imageUrl);
