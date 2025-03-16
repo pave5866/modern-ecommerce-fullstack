@@ -77,9 +77,10 @@ exports.getProduct = async (req, res, next) => {
   }
 };
 
-// Ürün oluştur
+// Ürün oluştur - Düzeltilmiş
 exports.createProduct = async (req, res, next) => {
   try {
+    // Ürün verilerini hazırla
     const productData = {
       name: req.body.name.trim(),
       description: req.body.description.trim(),
@@ -89,26 +90,46 @@ exports.createProduct = async (req, res, next) => {
       images: []
     };
 
+    // Cloudinary yapılandırma kontrolü
+    if (!process.env.CLOUDINARY_CLOUD_NAME || 
+        !process.env.CLOUDINARY_API_KEY || 
+        !process.env.CLOUDINARY_API_SECRET) {
+      logger.error('Cloudinary yapılandırma bilgileri eksik!');
+      throw new AppError('Resim yükleme servisi yapılandırması eksik', 500);
+    }
+
     // Resimleri Cloudinary'ye yükle
     if (req.files && req.files.length > 0) {
       logger.info('Resim yükleme başladı:', { fileCount: req.files.length });
       
-      const uploadPromises = req.files.map(async (file) => {
-        const dataURI = bufferToBase64(file.buffer, file.mimetype);
-        const result = await cloudinary.uploader.upload(dataURI, {
-          folder: 'products',
+      try {
+        const uploadPromises = req.files.map(async (file) => {
+          // Base64 formatına dönüştür
+          const dataURI = bufferToBase64(file.buffer, file.mimetype);
+          
+          // Cloudinary'ye yükle
+          const result = await cloudinary.uploader.upload(dataURI, {
+            folder: 'products',
+            resource_type: 'auto'
+          });
+          
+          logger.info('Resim yüklendi:', { url: result.secure_url });
+          return result.secure_url;
         });
         
-        logger.info('Resim yüklendi:', { url: result.secure_url });
-        return result.secure_url;
-      });
-      
-      productData.images = await Promise.all(uploadPromises);
-      logger.info('Tüm resimler yüklendi:', { imageCount: productData.images.length });
+        productData.images = await Promise.all(uploadPromises);
+        logger.info('Tüm resimler yüklendi:', { imageCount: productData.images.length });
+      } catch (error) {
+        logger.error('Ürün oluşturma hatası:', { error: error.message });
+        throw new AppError(`Resim yükleme hatası: ${error.message}`, 500);
+      }
     }
 
+    // Ürünü veritabanına kaydet
     const product = await Product.create(productData);
+    logger.info('Ürün başarıyla oluşturuldu:', { productId: product._id });
 
+    // Başarılı yanıt döndür
     res.status(201).json({
       success: true,
       data: product
@@ -159,6 +180,7 @@ exports.updateProduct = async (req, res, next) => {
         const dataURI = bufferToBase64(file.buffer, file.mimetype);
         const result = await cloudinary.uploader.upload(dataURI, {
           folder: 'products',
+          resource_type: 'auto'
         });
         
         logger.info('Yeni resim yüklendi:', { url: result.secure_url });
@@ -257,4 +279,4 @@ exports.getProductsByCategory = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-}; 
+};
