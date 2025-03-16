@@ -77,7 +77,7 @@ exports.getProduct = async (req, res, next) => {
   }
 };
 
-// Ürün oluştur - Düzeltilmiş
+// Ürün oluştur - Tamamen yeniden düzenlendi
 exports.createProduct = async (req, res, next) => {
   try {
     // Ürün verilerini hazırla
@@ -103,23 +103,27 @@ exports.createProduct = async (req, res, next) => {
       logger.info('Resim yükleme başladı:', { fileCount: req.files.length });
       
       try {
-        const uploadPromises = req.files.map(async (file) => {
+        // Her dosya için ayrı yükleme işlemi gerçekleştir
+        for (const file of req.files) {
           // Base64 formatına dönüştür
-          const dataURI = bufferToBase64(file.buffer, file.mimetype);
+          const fileStr = bufferToBase64(file.buffer, file.mimetype);
           
-          // Cloudinary'ye yükle - timestamp ve imza sorunlarını önlemek için api_key ve api_secret direkt kullanmıyoruz
-          const result = await cloudinary.uploader.upload(dataURI, {
-            folder: 'products'
-          });
-          
-          logger.info('Resim yüklendi:', { url: result.secure_url });
-          return result.secure_url;
-        });
+          try {
+            // Folder parametresi olmadan direkt yükleme
+            const uploadResponse = await cloudinary.uploader.upload(fileStr);
+            
+            // Başarılı yüklenen resmi listeye ekle
+            productData.images.push(uploadResponse.secure_url);
+            logger.info('Resim başarıyla yüklendi:', { url: uploadResponse.secure_url });
+          } catch (uploadError) {
+            logger.error('Resim yükleme hatası:', { error: uploadError.message });
+            throw new AppError(`Resim yükleme hatası: ${uploadError.message}`, 500);
+          }
+        }
         
-        productData.images = await Promise.all(uploadPromises);
         logger.info('Tüm resimler yüklendi:', { imageCount: productData.images.length });
       } catch (error) {
-        logger.error('Ürün oluşturma hatası:', { error: error.message });
+        logger.error('Resim yükleme genel hatası:', { error: error.message });
         throw new AppError(`Resim yükleme hatası: ${error.message}`, 500);
       }
     }
@@ -139,7 +143,7 @@ exports.createProduct = async (req, res, next) => {
   }
 };
 
-// Ürün güncelle
+// Ürün güncelle - Güncellendi
 exports.updateProduct = async (req, res, next) => {
   try {
     logger.info('Ürün güncelleme başladı:', { productId: req.params.id });
@@ -175,25 +179,28 @@ exports.updateProduct = async (req, res, next) => {
     if (req.files && req.files.length > 0) {
       logger.info('Yeni resim yükleme başladı:', { fileCount: req.files.length });
       
-      const uploadPromises = req.files.map(async (file) => {
-        const dataURI = bufferToBase64(file.buffer, file.mimetype);
-        const result = await cloudinary.uploader.upload(dataURI, {
-          folder: 'products'
-        });
+      // Her dosyayı tek tek işle
+      for (const file of req.files) {
+        const fileStr = bufferToBase64(file.buffer, file.mimetype);
         
-        logger.info('Yeni resim yüklendi:', { url: result.secure_url });
-        return result.secure_url;
-      });
+        try {
+          // Folder parametresi olmadan direkt yükleme
+          const uploadResponse = await cloudinary.uploader.upload(fileStr);
+          
+          // Başarılı yüklenen resmi listeye ekle
+          imagesToKeep.push(uploadResponse.secure_url);
+          logger.info('Yeni resim yüklendi:', { url: uploadResponse.secure_url });
+        } catch (uploadError) {
+          logger.error('Resim yükleme hatası:', { error: uploadError.message });
+          throw new AppError(`Resim yükleme hatası: ${uploadError.message}`, 500);
+        }
+      }
       
-      const newImages = await Promise.all(uploadPromises);
-      logger.info('Tüm yeni resimler yüklendi:', { imageCount: newImages.length });
-      
-      // Mevcut ve yeni resimleri birleştir
-      updateData.images = [...imagesToKeep, ...newImages];
-    } else {
-      // Sadece mevcut resimler
-      updateData.images = imagesToKeep;
+      logger.info('Tüm yeni resimler yüklendi:', { imageCount: imagesToKeep.length });
     }
+    
+    // Resim listesini güncelleme verisine ekle
+    updateData.images = imagesToKeep;
     
     logger.info('Ürün güncelleniyor:', { 
       productId: req.params.id,
