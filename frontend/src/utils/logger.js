@@ -6,7 +6,7 @@
 import { logAPI } from '../services';
 
 // Ortam değişkenine göre log seviyesini belirleme
-const LOG_LEVEL = process.env.NODE_ENV === 'production' ? 'error' : 'debug';
+const LOG_LEVEL = import.meta.env.NODE_ENV === 'production' ? 'error' : 'debug';
 
 // Log seviyeleri ve öncelikleri
 const LOG_LEVELS = {
@@ -37,7 +37,7 @@ const formatLog = (level, message, meta = {}) => {
 const sendLogToBackend = async (level, message, meta = {}) => {
   try {
     // Sadece üretim ortamında backend'e gönder
-    if (process.env.NODE_ENV === 'production') {
+    if (import.meta.env.PROD) {
       await logAPI.sendLog({
         level,
         message,
@@ -54,14 +54,14 @@ const sendLogToBackend = async (level, message, meta = {}) => {
 // Güvenli log fonksiyonu - console kullanmadan
 const safeLog = (level, formattedMessage, message, meta) => {
   // Üretim ortamında console kullanımını engelle
-  if (process.env.NODE_ENV === 'production') {
+  if (import.meta.env.PROD) {
     // Üretim ortamında logları backend'e gönder
     sendLogToBackend(level, message, meta);
     return;
   }
   
   // Geliştirme ortamında konsola yaz (ama üretimde değil)
-  if (process.env.NODE_ENV !== 'production') {
+  if (!import.meta.env.PROD) {
     switch (level) {
       case 'debug':
         console.debug(formattedMessage);
