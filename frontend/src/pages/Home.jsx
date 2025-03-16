@@ -5,9 +5,6 @@ import { ProductCard, Slider, CategoryCard } from '../components/ui'
 import { productAPI } from '../services'
 import { motion } from 'framer-motion'
 
-// Doğrudan dummy verileri içe aktaralım
-import { DUMMY_DATA } from '../services/dummyData'
-
 const features = [
   {
     title: 'Ücretsiz Kargo',
@@ -90,14 +87,22 @@ const itemVariants = {
 }
 
 export default function Home() {
+  // Gerçek API'den ürünleri al
   const { data: productsData, isLoading: productsLoading, error: productsError } = useQuery({
     queryKey: ['products'],
-    queryFn: () => {
-      // Doğrudan dummy verileri döndür
-      return {
-        success: true,
-        data: DUMMY_DATA.products
-      };
+    queryFn: async () => {
+      try {
+        console.log('Ana sayfa için ürünler getiriliyor');
+        const response = await productAPI.getAll();
+        console.log('Ürünler API yanıtı:', { 
+          success: response?.success, 
+          count: response?.data?.length || 0 
+        });
+        return response;
+      } catch (error) {
+        console.error('Ürünleri getirme hatası:', error);
+        throw error;
+      }
     },
     retry: 2,
     retryDelay: 1000,
@@ -105,14 +110,22 @@ export default function Home() {
     cacheTime: 1000 * 60 * 30, // 30 dakika
   })
 
+  // Gerçek API'den kategorileri al
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
     queryKey: ['categories'],
-    queryFn: () => {
-      // Doğrudan dummy kategorileri döndür
-      return {
-        success: true,
-        data: DUMMY_DATA.categories
-      };
+    queryFn: async () => {
+      try {
+        console.log('Ana sayfa için kategoriler getiriliyor');
+        const response = await productAPI.getCategories();
+        console.log('Kategoriler API yanıtı:', { 
+          success: response?.success, 
+          count: response?.data?.length || 0 
+        });
+        return response;
+      } catch (error) {
+        console.error('Kategorileri getirme hatası:', error);
+        throw error;
+      }
     },
     staleTime: 1000 * 60 * 5, // 5 dakika
     cacheTime: 1000 * 60 * 30, // 30 dakika
