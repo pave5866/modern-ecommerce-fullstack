@@ -1,4 +1,5 @@
 import axios from 'axios';
+import logger from '../utils/logger';
 
 // API'nin temel URL'si
 const API_URL = import.meta.env.VITE_API_URL || 'https://modern-ecommerce-fullstack.onrender.com/api';
@@ -24,7 +25,7 @@ api.interceptors.request.use(
   },
   (error) => {
     // İstek hatası durumunda
-    console.error('API istek hatası:', error);
+    logger.error('API istek hatası:', error);
     return Promise.reject(error);
   }
 );
@@ -37,7 +38,7 @@ api.interceptors.response.use(
   },
   (error) => {
     // Hata yanıtı
-    console.error('API yanıt hatası:', error.response || error.message);
+    logger.error('API yanıt hatası:', error.response || error.message);
     
     // Token süresi dolmuşsa
     if (error.response && error.response.status === 401) {
@@ -61,7 +62,7 @@ export const logAPI = {
         return await api.post('/logs', logData);
       } catch (error) {
         // Loglama hatası olduğunda sessizce devam et
-        console.error('Log gönderme hatası:', error);
+        logger.error('Log gönderme hatası:', error);
         return { success: false };
       }
     }
@@ -102,7 +103,7 @@ export const productAPI = {
   getAll: async (limit = 10) => {
     try {
       const response = await api.get(`/products?limit=${limit}`);
-      console.log('API getAll yanıtı:', response);
+      logger.info('API getAll yanıtı:', response);
       
       // Backend yanıt formatını kontrol et
       if (response.success && response.data) {
@@ -119,7 +120,7 @@ export const productAPI = {
         error: 'Beklenmeyen API yanıt formatı'
       };
     } catch (error) {
-      console.error('Ürünleri getirme hatası:', error);
+      logger.error('Ürünleri getirme hatası:', error);
       return {
         success: false,
         data: [],
@@ -144,7 +145,7 @@ export const productAPI = {
         error: 'Ürün bulunamadı'
       };
     } catch (error) {
-      console.error('Ürün detayı getirme hatası:', error);
+      logger.error('Ürün detayı getirme hatası:', error);
       return {
         success: false,
         product: null,
@@ -166,7 +167,7 @@ export const productAPI = {
   getCategories: async () => {
     try {
       const response = await api.get('/products/categories');
-      console.log('API getCategories yanıtı:', response);
+      logger.info('API getCategories yanıtı:', response);
       
       if (response.success && response.data) {
         return {
@@ -181,7 +182,7 @@ export const productAPI = {
         error: 'Beklenmeyen API yanıt formatı'
       };
     } catch (error) {
-      console.error('Kategorileri getirme hatası:', error);
+      logger.error('Kategorileri getirme hatası:', error);
       return {
         success: false,
         data: [],
@@ -208,7 +209,7 @@ export const productAPI = {
         error: 'Beklenmeyen API yanıt formatı'
       };
     } catch (error) {
-      console.error('Kategori ürünlerini getirme hatası:', error);
+      logger.error('Kategori ürünlerini getirme hatası:', error);
       return {
         success: false,
         data: [],
@@ -235,7 +236,7 @@ export const productAPI = {
         error: 'Beklenmeyen API yanıt formatı'
       };
     } catch (error) {
-      console.error('Ürün arama hatası:', error);
+      logger.error('Ürün arama hatası:', error);
       return {
         success: false,
         data: [],
@@ -262,7 +263,7 @@ export const productAPI = {
         error: 'Beklenmeyen API yanıt formatı'
       };
     } catch (error) {
-      console.error('Öne çıkan ürünleri getirme hatası:', error);
+      logger.error('Öne çıkan ürünleri getirme hatası:', error);
       return {
         success: false,
         data: [],
