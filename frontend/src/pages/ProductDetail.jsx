@@ -7,27 +7,30 @@ import { useState } from 'react'
 import { showToast } from '../utils'
 import logger from '../utils/logger'
 
-// Doğrudan dummy verileri içe aktaralım
-import { DUMMY_DATA } from '../services/dummyData'
-
 export default function ProductDetail() {
   const { id } = useParams()
   const addItem = useCartStore((state) => state.addItem)
   const { user } = useAuthStore()
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
-  const { data: product, isLoading, error } = useQuery({
+  // Gerçek API'den ürün bilgisini al
+  const { data: productData, isLoading, error } = useQuery({
     queryKey: ['product', id],
     queryFn: async () => {
       try {
-        // Doğrudan dummy verilerden ürünü bul
-        const dummyProduct = DUMMY_DATA.products.find(p => p._id === id);
+        console.log('Ürün detayı getiriliyor, id:', id);
+        const response = await productAPI.getById(id);
         
-        if (!dummyProduct) {
-          throw new Error('Ürün bulunamadı');
+        if (!response.success || !response.product) {
+          throw new Error(response.error || 'Ürün bulunamadı');
         }
         
-        return dummyProduct;
+        console.log('Ürün detayı başarıyla getirildi:', {
+          id: response.product._id,
+          name: response.product.name
+        });
+        
+        return response.product;
       } catch (error) {
         logger.error('Ürün getirme hatası:', { error: error.message, productId: id })
         throw error
@@ -35,16 +38,26 @@ export default function ProductDetail() {
     }
   })
 
+  // Ürün yoksa benzer ürünleri getirme
+  const product = productData;
+
+  // Gerçek API'den benzer ürünleri al
   const { data: similarProducts, isLoading: isSimilarLoading } = useQuery({
     queryKey: ['products', product?.category],
     queryFn: async () => {
       try {
         logger.info('Benzer ürünler getiriliyor:', { category: product?.category });
         
-        // Doğrudan dummy verilerden benzer ürünleri filtrele
-        const filteredProducts = DUMMY_DATA.products.filter(p => 
-          p.category === product.category && p._id !== product._id
-        ).slice(0, 4);
+        const response = await productAPI.getByCategory(product.category);
+        
+        if (!response.success) {
+          throw new Error('Benzer ürünler getirilemedi');
+        }
+        
+        // Mevcut ürünü filtrele ve sadece 4 tanesini göster
+        const filteredProducts = response.data
+          .filter(p => p._id !== product._id)
+          .slice(0, 4);
         
         logger.info('Filtrelenmiş benzer ürünler:', { count: filteredProducts.length });
         return filteredProducts;
