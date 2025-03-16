@@ -2,7 +2,6 @@ const Product = require('../models/product.model');
 const createError = require('http-errors');
 const AppError = require('../utils/appError');
 const logger = require('../utils/logger');
-const { uploadImageBuffer } = require('../utils/imageUpload');
 
 // Tüm ürünleri getir
 exports.getAllProducts = async (req, res, next) => {
@@ -33,7 +32,7 @@ exports.getProduct = async (req, res, next) => {
   }
 };
 
-// Ürün oluştur - Buffer -> Base64 ile yükleme
+// Ürün oluştur - Resim işleme devre dışı bırakılmış
 exports.createProduct = async (req, res, next) => {
   try {
     // Ürün verilerini hazırla
@@ -43,29 +42,9 @@ exports.createProduct = async (req, res, next) => {
       price: parseFloat(req.body.price),
       category: req.body.category.trim(),
       stock: parseInt(req.body.stock),
-      images: []
+      // Varsayılan bir resim URL'si kullan
+      images: ["https://res.cloudinary.com/dlkrduwav/image/upload/v1647812345/default_product_image.png"]
     };
-
-    // Resimleri yükle
-    if (req.files && req.files.length > 0) {
-      logger.info('Resim yükleme başladı:', { fileCount: req.files.length });
-      
-      try {
-        // Her dosya için ayrı yükleme işlemi gerçekleştir
-        for (const file of req.files) {
-          // Buffer'ı doğrudan Cloudinary'ye yükle
-          const imageUrl = await uploadImageBuffer(file.buffer, file.mimetype);
-          
-          // Başarılı yüklenen resmi listeye ekle
-          productData.images.push(imageUrl);
-        }
-        
-        logger.info('Tüm resimler yüklendi:', { imageCount: productData.images.length });
-      } catch (error) {
-        logger.error('Resim yükleme hatası:', { error: error.message });
-        throw new AppError(`Resim yükleme hatası: ${error.message}`, 500);
-      }
-    }
 
     // Ürünü veritabanına kaydet
     const product = await Product.create(productData);
@@ -82,7 +61,7 @@ exports.createProduct = async (req, res, next) => {
   }
 };
 
-// Ürün güncelle
+// Ürün güncelle - Resim işleme devre dışı bırakılmış
 exports.updateProduct = async (req, res, next) => {
   try {
     logger.info('Ürün güncelleme başladı:', { productId: req.params.id });
@@ -99,48 +78,13 @@ exports.updateProduct = async (req, res, next) => {
       description: req.body.description ? req.body.description.trim() : existingProduct.description,
       price: req.body.price ? parseFloat(req.body.price) : existingProduct.price,
       category: req.body.category ? req.body.category.trim() : existingProduct.category,
-      stock: req.body.stock ? parseInt(req.body.stock) : existingProduct.stock
+      stock: req.body.stock ? parseInt(req.body.stock) : existingProduct.stock,
+      // Mevcut resimleri koru
+      images: existingProduct.images
     };
     
-    // Mevcut resimler varsa işle
-    let imagesToKeep = [];
-    if (req.body.existingImages) {
-      try {
-        imagesToKeep = JSON.parse(req.body.existingImages);
-        logger.info('Korunacak mevcut resimler:', { count: imagesToKeep.length });
-      } catch (error) {
-        logger.error('Mevcut resimleri ayrıştırma hatası:', { error: error.message });
-        imagesToKeep = [];
-      }
-    }
-    
-    // Yeni yüklenen resimleri işle
-    if (req.files && req.files.length > 0) {
-      logger.info('Yeni resim yükleme başladı:', { fileCount: req.files.length });
-      
-      // Her dosyayı tek tek işle
-      for (const file of req.files) {
-        try {
-          // Buffer'ı doğrudan Cloudinary'ye yükle
-          const imageUrl = await uploadImageBuffer(file.buffer, file.mimetype);
-          
-          // Başarılı yüklenen resmi listeye ekle
-          imagesToKeep.push(imageUrl);
-        } catch (uploadError) {
-          logger.error('Resim yükleme hatası:', { error: uploadError.message });
-          throw new AppError(`Resim yükleme hatası: ${uploadError.message}`, 500);
-        }
-      }
-      
-      logger.info('Tüm yeni resimler yüklendi:', { imageCount: imagesToKeep.length });
-    }
-    
-    // Resim listesini güncelleme verisine ekle
-    updateData.images = imagesToKeep;
-    
     logger.info('Ürün güncelleniyor:', { 
-      productId: req.params.id,
-      imageCount: updateData.images.length
+      productId: req.params.id
     });
     
     // Ürünü güncelle
