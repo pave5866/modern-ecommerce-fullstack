@@ -52,6 +52,23 @@ api.interceptors.response.use(
   }
 );
 
+// Logger API - build hatası için eklendi
+export const logAPI = {
+  sendLog: async (logData) => {
+    // Sadece üretim ortamında backend'e gönder
+    if (import.meta.env.PROD) {
+      try {
+        return await api.post('/logs', logData);
+      } catch (error) {
+        // Loglama hatası olduğunda sessizce devam et
+        console.error('Log gönderme hatası:', error);
+        return { success: false };
+      }
+    }
+    return { success: true }; // Geliştirme ortamında başarılı gibi davran
+  }
+};
+
 // Kullanıcı API
 export const userAPI = {
   // Kullanıcı kayıt
