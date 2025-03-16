@@ -3,8 +3,6 @@
  * Üretim ortamında logları kapatabilir veya sadece belirli seviyeleri gösterebiliriz
  */
 
-import { logAPI } from '../services/api';
-
 // Ortam değişkenine göre log seviyesini belirleme
 const LOG_LEVEL = process.env.NODE_ENV === 'production' ? 'error' : 'debug';
 
@@ -33,18 +31,30 @@ const formatLog = (level, message, meta = {}) => {
   return `${ts} [${level.toUpperCase()}]: ${message} ${metaStr}`;
 };
 
-// Backend'e log gönderme
+// Backend'e log gönderme - geçici olarak devre dışı bırakıldı
 const sendLogToBackend = async (level, message, meta = {}) => {
   try {
     // Sadece üretim ortamında backend'e gönder
     if (process.env.NODE_ENV === 'production') {
-      await logAPI.sendLog({
-        level,
-        message,
-        meta,
-        source: 'frontend',
-        timestamp: new Date().toISOString()
+      // API'yi direkt olarak kullanmak yerine bir konsol mesajı
+      console.warn('Log API işlevi şu anda devre dışı bırakıldı');
+      
+      // API'nin sürümü hazır olduğunda yorum işaretini kaldırın
+      /*
+      await fetch('/api/logs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          level,
+          message,
+          meta,
+          source: 'frontend',
+          timestamp: new Date().toISOString()
+        }),
       });
+      */
     }
   } catch (error) {
     // Log gönderme hatası durumunda sessizce devam et
@@ -60,8 +70,25 @@ const safeLog = (level, formattedMessage, message, meta) => {
     return;
   }
   
-  // Geliştirme ortamında özel bir div'e yazdır veya sessizce yok say
-  // Bu kısım isteğe bağlı olarak geliştirilebilir
+  // Geliştirme ortamında konsola yaz (ama üretimde değil)
+  if (process.env.NODE_ENV !== 'production') {
+    switch (level) {
+      case 'debug':
+        console.debug(formattedMessage);
+        break;
+      case 'info':
+        console.info(formattedMessage);
+        break;
+      case 'warn':
+        console.warn(formattedMessage);
+        break;
+      case 'error':
+        console.error(formattedMessage);
+        break;
+      default:
+        console.log(formattedMessage);
+    }
+  }
   
   // Geliştirme ortamında DOM'a log ekleyebiliriz (opsiyonel)
   if (typeof document !== 'undefined') {
@@ -114,4 +141,4 @@ const logger = {
   }
 };
 
-export default logger; 
+export default logger;
