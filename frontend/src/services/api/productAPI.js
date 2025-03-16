@@ -1,4 +1,4 @@
-import { api } from '../api'
+import api from '../api'
 
 export const productAPI = {
   getAll: async () => {
@@ -33,4 +33,4 @@ export const productAPI = {
     const response = await api.delete(`/products/${id}`)
     return response.data
   }
-} 
+}
