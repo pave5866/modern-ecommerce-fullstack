@@ -1,4 +1,4 @@
-import { api, productAPI, orderAPI } from './api';
+import api, { productAPI, orderAPI } from './api';
 
 // API services
 const authAPI = {
