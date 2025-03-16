@@ -1,4 +1,7 @@
 // Dummy veriler - API bağlantısı olmadığında kullanılacak
+// NOT: Bu dosya artık kullanılmıyor, gerçek API entegrasyonu yapıldı.
+// Sadece referans olarak tutulmuştur.
+
 export const DUMMY_DATA = {
   products: [
     { 
