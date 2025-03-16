@@ -3,6 +3,7 @@ const app = require('./app');
 const logger = require('./utils/logger');
 const path = require('path');
 const fs = require('fs');
+const express = require('express');
 require('dotenv').config();
 
 // MongoDB bağlantısı
@@ -40,7 +41,7 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'public', 'uploads
 const PORT = process.env.PORT || 5000;
 
 // Server'ı başlat
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   logger.info(`Server ${PORT} portunda çalışıyor`);
   logger.info(`API: ${process.env.NODE_ENV === 'production' 
     ? 'https://modern-ecommerce-fullstack.onrender.com/api' 
