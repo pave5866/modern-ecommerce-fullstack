@@ -84,11 +84,31 @@ export const productAPI = {
         dataCount: response?.data?.data?.length || 0 
       });
       
+      // Backend response formatı: { success: true, data: [...] }
+      // Eğer data bir array değilse (örn, { products: [], pagination: {} } gibi bir obje ise)
       if (response?.data?.success) {
-        return {
-          success: true,
-          data: response.data.data || []
-        };
+        const responseData = response.data.data;
+        
+        // Eğer data bir array ise doğrudan döndür, değilse products'ı döndür
+        if (Array.isArray(responseData)) {
+          return {
+            success: true,
+            data: responseData
+          };
+        } else if (responseData && responseData.products) {
+          // Eğer data { products: [], pagination: {} } şeklinde ise
+          return {
+            success: true,
+            data: responseData.products
+          };
+        } else {
+          // Hiçbiri değilse boş array döndür
+          console.warn('API yanıtından ürünler alınamadı', responseData);
+          return {
+            success: true,
+            data: []
+          };
+        }
       }
       return { success: false, data: [] };
     } catch (error) {
@@ -137,6 +157,8 @@ export const productAPI = {
       console.log('getCategories çağrıldı');
       
       const response = await api.get('/products/categories');
+      console.log('getCategories yanıtı:', response?.data);
+      
       if (response?.data?.success) {
         return {
           success: true,
