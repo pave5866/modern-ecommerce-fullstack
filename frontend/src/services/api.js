@@ -1,574 +1,327 @@
-import axios from 'axios'
+import axios from 'axios';
 
-// API URL - backend URL'i
-const API_URL = 'https://modern-ecommerce-fullstack.onrender.com/api';
+// API'nin temel URL'si
+const API_URL = import.meta.env.VITE_API_URL || 'https://modern-ecommerce-fullstack.onrender.com/api';
 
-// Log gönderimini kontrol etmek için değişken
-let isLoggingEnabled = false;
-let pendingLogs = [];
-let isLogSendingActive = false;
-
-// Dummy veri kullanımını kapatıyoruz
-const USE_DUMMY_DATA = false;
-
-// API instance oluşturma
-export const api = axios.create({
+// Axios örneği oluşturma
+const api = axios.create({
   baseURL: API_URL,
   headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    'X-Requested-With': 'XMLHttpRequest'
+    'Content-Type': 'application/json'
   },
-  withCredentials: true, // CORS sorunları için true (credentials ile çalışacak şekilde)
-  timeout: 30000 // 30 saniye timeout
-})
+  withCredentials: true,
+});
 
-// Request interceptor
+// API istekleri için interceptor
 api.interceptors.request.use(
   (config) => {
-    // İsteği log et (ama /logs endpoint'ine gönderme)
-    if (config.url !== '/logs') {
-      console.log(`API isteği: ${config.method?.toUpperCase()} ${config.url}`);
-    }
-    
-    // LocalStorage'dan token alma
-    const token = localStorage.getItem('token')
+    // İstek öncesi yapılacak işlemler
+    const token = localStorage.getItem('token');
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`
+      config.headers.Authorization = `Bearer ${token}`;
     }
-    
-    return config
+    return config;
   },
   (error) => {
-    console.error('API request error:', error.message);
-    return Promise.reject(error)
+    // İstek hatası durumunda
+    console.error('API istek hatası:', error);
+    return Promise.reject(error);
   }
-)
+);
 
-// Response interceptor
+// API yanıtları için interceptor
 api.interceptors.response.use(
   (response) => {
-    // Yalnızca /logs dışındaki yanıtları loglama
-    if (!response.config.url.includes('/logs')) {
-      console.log(`API yanıtı: ${response.status} ${response.config.url}`);
-    }
-    return response;
+    // Başarılı yanıt
+    return response.data;
   },
-  async (error) => {
-    if (!error.config?.url.includes('/logs')) {
-      console.error(`API hata yanıtı: ${error.message}`, {
-        url: error.config?.url,
-        method: error.config?.method
-      });
+  (error) => {
+    // Hata yanıtı
+    console.error('API yanıt hatası:', error.response || error.message);
+    
+    // Token süresi dolmuşsa
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem('token');
+      // Kullanıcıyı login sayfasına yönlendir
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
     
-    // 401 hatası durumunda logout
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token')
-      window.location.href = '/login'
-    }
-    
-    return Promise.reject(error)
+    return Promise.reject(error);
   }
-)
+);
 
-// Product endpoints
-export const productAPI = {
-  getAll: async (limit) => {
-    try {
-      console.log('getAll çağrıldı, limit:', limit);
-      const response = await api.get(`/products${limit ? `?limit=${limit}` : ''}`);
-      console.log('getAll yanıtı alındı:', { 
-        status: response?.status,
-        success: response?.data?.success,
-        dataCount: response?.data?.data?.length || 0 
-      });
-      
-      // Backend response formatı: { success: true, data: [...] }
-      // Eğer data bir array değilse (örn, { products: [], pagination: {} } gibi bir obje ise)
-      if (response?.data?.success) {
-        const responseData = response.data.data;
-        
-        // Eğer data bir array ise doğrudan döndür, değilse products'ı döndür
-        if (Array.isArray(responseData)) {
-          return {
-            success: true,
-            data: responseData
-          };
-        } else if (responseData && responseData.products) {
-          // Eğer data { products: [], pagination: {} } şeklinde ise
-          return {
-            success: true,
-            data: responseData.products
-          };
-        } else {
-          // Hiçbiri değilse boş array döndür
-          console.warn('API yanıtından ürünler alınamadı', responseData);
-          return {
-            success: true,
-            data: []
-          };
-        }
-      }
-      return { success: false, data: [] };
-    } catch (error) {
-      console.error('Products fetch error:', error.message);
-      return { success: false, data: [], error: error.message };
-    }
-  },
-  getById: async (id) => {
-    try {
-      console.log('getById çağrıldı, id:', id);
-      
-      const response = await api.get(`/products/${id}`);
-      if (response?.data?.success) {
-        return {
-          success: true,
-          product: response.data.data
-        };
-      }
-      return { 
-        success: false, 
-        product: null,
-        error: response?.data?.message || 'Ürün bulunamadı'
-      };
-    } catch (error) {
-      console.error('Ürün detayı getirme hatası:', error.message);
-      return { 
-        success: false, 
-        product: null,
-        error: error?.response?.data?.message || error.message
-      };
-    }
-  },
-  create: (data) => api.post('/products', data, {
-    headers: {
-      'Content-Type': 'multipart/form-data'
-    }
-  }),
-  update: (id, data) => api.put(`/products/${id}`, data, {
-    headers: {
-      'Content-Type': 'multipart/form-data'
-    }
-  }),
-  delete: (id) => api.delete(`/products/${id}`),
-  getCategories: async () => {
-    try {
-      console.log('getCategories çağrıldı');
-      
-      const response = await api.get('/products/categories');
-      console.log('getCategories yanıtı:', response?.data);
-      
-      if (response?.data?.success) {
-        return {
-          success: true,
-          data: response.data.data || []
-        };
-      }
-      return { success: false, data: [] };
-    } catch (error) {
-      console.error('Categories fetch error:', error.message);
-      return { success: false, data: [], error: error.message };
-    }
-  },
-  search: async (query) => {
-    try {
-      const response = await api.get('/products/search', { params: { q: query } });
-      if (response?.data?.success) {
-        return {
-          success: true,
-          data: response.data.data || []
-        };
-      }
-      return { success: false, data: [] };
-    } catch (error) {
-      console.error('Search error:', { error: error.message });
-      return { success: false, data: [] };
-    }
-  },
-  getByCategory: async (category, limit = 15, skip = 0) => {
-    try {
-      console.log('getByCategory çağrıldı, category:', category);
-      
-      if (!category) {
-        console.warn('Kategori belirtilmeden getByCategory çağrıldı');
-        return { success: false, data: [], error: 'Kategori belirtilmedi' };
-      }
-      
-      const categoryParam = encodeURIComponent(category);
-      
-      const response = await api.get(`/products/category/${categoryParam}`, {
-        params: { limit, skip }
-      });
-      
-      return {
-        success: response?.data?.success || false,
-        data: response?.data?.data || [],
-        skip: response?.data?.skip || skip,
-        limit: response?.data?.limit || limit,
-        total: response?.data?.total || 0
-      };
-    } catch (error) {
-      console.error('Kategori ürünleri getirme hatası:', error.message, 'category:', category);
-      return { 
-        success: false, 
-        data: [], 
-        error: error?.response?.data?.message || error.message 
-      };
-    }
-  }
-}
-
-// Auth endpoints
-export const authAPI = {
-  register: (data) => api.post('/auth/register', data),
-  login: async (data) => {
-    try {
-      console.log('Login isteği yapılıyor', { email: data.email });
-      
-      // CORS hatalarını önlemek için özel yapılandırma
-      const response = await axios.post(`${API_URL}/auth/login`, data, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        withCredentials: true
-      });
-      
-      console.log('Login yanıtı alındı', { status: response.status });
-      return response;
-    } catch (error) {
-      console.error('Login hatası:', error.message);
-      throw error;
-    }
-  },
-  logout: () => api.post('/auth/logout'),
-  update: (data) => api.put('/auth/profile', data),
-  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
-  resetPassword: (data) => api.post('/auth/reset-password', data)
-}
-
-// Order endpoints
-export const orderAPI = {
-  create: async (orderData) => {
-    try {
-      if (!orderData.shippingAddress || !orderData.shippingAddress.fullName) {
-        console.error('Sipariş oluşturma hatası:', { error: 'shippingAddress.fullName alanı gerekli' });
-        return {
-          success: false,
-          error: 'Teslimat adresi bilgileriniz eksik. Lütfen adres bilgilerinizi kontrol edin.'
-        };
-      }
-
-      const response = await api.post('/orders', orderData);
-      if (response?.data?.success) {
-        return {
-          success: true,
-          data: response.data.data
-        };
-      }
-      
-      console.error('Sipariş oluşturma hatası:', { 
-        status: response?.status, 
-        error: response?.data?.error, 
-        message: response?.data?.message
-      });
-      
-      return {
-        success: false,
-        error: response?.data?.error || response?.data?.message,
-        status: response?.status
-      };
-    } catch (error) {
-      console.error('Sipariş oluşturma hatası:', { 
-        error: error.message, 
-        status: error.response?.status,
-        data: error.response?.data
-      });
-      
-      return {
-        success: false,
-        error: error?.response?.data?.error || error?.response?.data?.message || error.message,
-        status: error?.response?.status,
-        data: error?.response?.data
-      };
-    }
-  },
-  getAll: async () => {
-    try {
-      const response = await api.get('/orders')
-      if (response?.data?.success) {
-        return {
-          success: true,
-          orders: response.data.data || []
-        }
-      }
-      return {
-        success: false,
-        orders: [],
-        error: response?.data?.message || 'Siparişler alınamadı'
-      }
-    } catch (error) {
-      console.error('Sipariş getirme hatası:', { error: error.message })
-      return {
-        success: false,
-        orders: [],
-        error: error?.response?.data?.message || error.message
-      }
-    }
-  },
-  getById: async (id) => {
-    try {
-      const response = await api.get(`/orders/${id}`)
-      return response.data
-    } catch (error) {
-      console.error('Sipariş getirme hatası:', { error: error.message })
-      throw error
-    }
-  },
-  deleteOrder: async (orderId) => {
-    try {
-      const response = await api.delete(`/orders/${orderId}`)
-      return response.data
-    } catch (error) {
-      console.error('Sipariş silme hatası:', { error: error.message })
-      throw error
-    }
-  },
-  deleteAllOrders: async () => {
-    try {
-      const response = await api.delete('/orders')
-      return response.data
-    } catch (error) {
-      console.error('Tüm siparişleri silme hatası:', { error: error.message })
-      throw error
-    }
-  },
-  getUserOrders: async () => {
-    try {
-      const response = await api.get('/orders')
-      if (response?.data?.success) {
-        return {
-          success: true,
-          data: response.data.data || []
-        }
-      }
-      return {
-        success: false,
-        data: [],
-        error: response?.data?.message || 'Siparişler alınamadı'
-      }
-    } catch (error) {
-      console.error('Kullanıcı siparişleri getirme hatası:', { error: error.message })
-      return {
-        success: false,
-        data: [],
-        error: error?.response?.data?.message || error.message
-      }
-    }
-  }
-}
-
-// Address endpoints
-export const addressAPI = {
-  getAll: async () => {
-    try {
-      const response = await api.get('/addresses')
-      if (response?.data?.success) {
-        return {
-          success: true,
-          addresses: response.data.data || []
-        }
-      }
-      return {
-        success: false,
-        addresses: [],
-        error: response?.data?.message || 'Adresler alınamadı'
-      }
-    } catch (error) {
-      console.error('Adres getirme hatası:', { error: error.message })
-      return {
-        success: false,
-        addresses: [],
-        error: error?.response?.data?.message || error.message
-      }
-    }
-  },
-  create: async (addressData) => {
-    try {
-      const response = await api.post('/addresses', addressData)
-      return response.data
-    } catch (error) {
-      console.error('Adres oluşturma hatası:', { error: error.message })
-      return {
-        success: false,
-        error: error?.response?.data?.message || error.message
-      }
-    }
-  },
-  update: async (addressId, addressData) => {
-    try {
-      const response = await api.put(`/addresses/${addressId}`, addressData)
-      return response.data
-    } catch (error) {
-      console.error('Adres güncelleme hatası:', { error: error.message })
-      return {
-        success: false,
-        error: error?.response?.data?.message || error.message
-      }
-    }
-  },
-  delete: async (addressId) => {
-    try {
-      const response = await api.delete(`/addresses/${addressId}`)
-      return response.data
-    } catch (error) {
-      console.error('Adres silme hatası:', { error: error.message })
-      return {
-        success: false,
-        error: error?.response?.data?.message || error.message
-      }
-    }
-  }
-}
-
-// User endpoints
+// Kullanıcı API
 export const userAPI = {
-  getAll: async (params) => {
+  // Kullanıcı kayıt
+  register: (userData) => api.post('/auth/register', userData),
+  
+  // Kullanıcı girişi
+  login: (credentials) => api.post('/auth/login', credentials),
+  
+  // Kullanıcı çıkışı
+  logout: () => api.get('/auth/logout'),
+  
+  // Kullanıcı bilgilerini getir
+  getProfile: () => api.get('/users/me'),
+  
+  // Kullanıcı bilgilerini güncelle
+  updateProfile: (userData) => api.put('/users/me', userData),
+  
+  // Şifre değiştir
+  changePassword: (passwordData) => api.put('/users/change-password', passwordData),
+  
+  // Şifre sıfırlama isteği
+  requestPasswordReset: (email) => api.post('/auth/forgot-password', { email }),
+  
+  // Şifre sıfırlama
+  resetPassword: (resetToken, newPassword) => api.post(`/auth/reset-password/${resetToken}`, { password: newPassword }),
+};
+
+// Ürün API
+export const productAPI = {
+  // Tüm ürünleri getir
+  getAll: async (limit = 10) => {
     try {
-      const paramStr = params ? params.toString() : '';
-      const response = await api.get(`/users${paramStr ? `?${paramStr}` : ''}`);
+      const response = await api.get(`/products?limit=${limit}`);
+      console.log('API getAll yanıtı:', response);
       
-      if (response?.data?.success) {
+      // Backend yanıt formatını kontrol et
+      if (response.success && response.data) {
         return {
           success: true,
-          data: response.data.data || { users: [], pagination: { total: 0, pages: 1 } }
+          data: response.data || []
         };
       }
       
-      console.error('Kullanıcı API hatası:', { response: response?.data });
-      
+      // Eski format veya geçersiz yanıt
       return {
         success: false,
-        data: { users: [], pagination: { total: 0, pages: 1 } },
-        error: response?.data?.message || 'Kullanıcılar alınamadı'
+        data: [],
+        error: 'Beklenmeyen API yanıt formatı'
       };
     } catch (error) {
-      console.error('Kullanıcı getirme hatası:', { error: error.message });
+      console.error('Ürünleri getirme hatası:', error);
       return {
         success: false,
-        data: { users: [], pagination: { total: 0, pages: 1 } },
-        error: error?.response?.data?.message || error.message
-      };
-    }
-  },
-  getUserDetails: (id) => api.get(`/users/${id}`),
-  updateUser: (id, data) => api.put(`/users/${id}`, data),
-  deleteUser: (id) => api.delete(`/users/${id}`),
-  updateRole: async (userId, role) => {
-    try {
-      const response = await api.put(`/users/${userId}`, { role });
-      
-      if (response?.data?.success) {
-        return { 
-          success: true, 
-          data: response.data.data,
-          message: 'Kullanıcı rolü başarıyla güncellendi'
-        };
-      }
-      
-      return {
-        success: false,
-        error: response?.data?.message || 'Rol güncelleme işlemi başarısız oldu'
-      };
-    } catch (error) {
-      const errorMessage = error?.response?.data?.message || error.message || 'Rol güncelleme sırasında bir hata oluştu';
-      console.error('Rol güncelleme hatası:', { errorMessage });
-      
-      return {
-        success: false,
-        error: errorMessage
+        data: [],
+        error: error.response?.data?.message || 'Ürünler getirilirken bir hata oluştu'
       };
     }
   },
   
-  getProfile: async () => {
+  // Ürün detayı getir
+  getById: async (id) => {
     try {
-      const response = await api.get('/users/profile')
-      if (response?.data?.success) {
+      const response = await api.get(`/products/${id}`);
+      if (response.success && response.data) {
         return {
           success: true,
-          user: response.data.data || {}
-        }
+          product: response.data
+        };
       }
       return {
         success: false,
-        user: {},
-        error: response?.data?.message || 'Profil bilgileri alınamadı'
-      }
+        product: null,
+        error: 'Ürün bulunamadı'
+      };
     } catch (error) {
-      console.error('Profil bilgileri getirme hatası:', { error: error.message })
+      console.error('Ürün detayı getirme hatası:', error);
       return {
         success: false,
-        user: {},
-        error: error?.response?.data?.message || error.message
-      }
+        product: null,
+        error: error.response?.data?.message || 'Ürün detayı getirilirken bir hata oluştu'
+      };
     }
   },
-  updateProfile: async (userData) => {
+  
+  // Ürün oluştur
+  create: (productData) => api.post('/products', productData),
+  
+  // Ürün güncelle
+  update: (id, productData) => api.put(`/products/${id}`, productData),
+  
+  // Ürün sil
+  delete: (id) => api.delete(`/products/${id}`),
+  
+  // Kategorileri getir
+  getCategories: async () => {
     try {
-      const response = await api.put('/users/profile', userData)
-      return response.data
-    } catch (error) {
-      console.error('Profil güncelleme hatası:', { error: error.message })
+      const response = await api.get('/products/categories');
+      console.log('API getCategories yanıtı:', response);
+      
+      if (response.success && response.data) {
+        return {
+          success: true,
+          data: response.data || []
+        };
+      }
+      
       return {
         success: false,
-        error: error?.response?.data?.message || error.message
-      }
+        data: [],
+        error: 'Beklenmeyen API yanıt formatı'
+      };
+    } catch (error) {
+      console.error('Kategorileri getirme hatası:', error);
+      return {
+        success: false,
+        data: [],
+        error: error.response?.data?.message || 'Kategoriler getirilirken bir hata oluştu'
+      };
     }
   },
-  updatePassword: async (passwordData) => {
+  
+  // Kategoriye göre ürün ara
+  getByCategory: async (category) => {
     try {
-      const response = await api.put('/users/password', passwordData)
-      return response.data
-    } catch (error) {
-      console.error('Şifre güncelleme hatası:', { error: error.message })
+      const response = await api.get(`/products/category/${category}`);
+      
+      if (response.success && response.data) {
+        return {
+          success: true,
+          data: response.data
+        };
+      }
+      
       return {
         success: false,
-        error: error?.response?.data?.message || error.message
+        data: [],
+        error: 'Beklenmeyen API yanıt formatı'
+      };
+    } catch (error) {
+      console.error('Kategori ürünlerini getirme hatası:', error);
+      return {
+        success: false,
+        data: [],
+        error: error.response?.data?.message || 'Kategori ürünleri getirilirken bir hata oluştu'
+      };
+    }
+  },
+  
+  // Ürün ara
+  search: async (query) => {
+    try {
+      const response = await api.get(`/products/search?query=${query}`);
+      
+      if (response.success && response.data) {
+        return {
+          success: true,
+          data: response.data
+        };
       }
+      
+      return {
+        success: false,
+        data: [],
+        error: 'Beklenmeyen API yanıt formatı'
+      };
+    } catch (error) {
+      console.error('Ürün arama hatası:', error);
+      return {
+        success: false,
+        data: [],
+        error: error.response?.data?.message || 'Ürün araması yapılırken bir hata oluştu'
+      };
+    }
+  },
+  
+  // Öne çıkan ürünleri getir
+  getFeatured: async (limit = 5) => {
+    try {
+      const response = await api.get(`/products/featured?limit=${limit}`);
+      
+      if (response.success && response.data) {
+        return {
+          success: true,
+          data: response.data
+        };
+      }
+      
+      return {
+        success: false,
+        data: [],
+        error: 'Beklenmeyen API yanıt formatı'
+      };
+    } catch (error) {
+      console.error('Öne çıkan ürünleri getirme hatası:', error);
+      return {
+        success: false,
+        data: [],
+        error: error.response?.data?.message || 'Öne çıkan ürünler getirilirken bir hata oluştu'
+      };
     }
   }
-}
+};
 
-// Settings endpoints
-export const settingsAPI = {
-  getSettings: async () => {
-    try {
-      const response = await api.get('/settings')
-      return response.data
-    } catch (error) {
-      console.error('Settings fetch error:', { error: error.message })
-      return { success: false, data: {} }
-    }
-  },
-  updateSettings: async (data) => {
-    try {
-      const response = await api.put('/settings', data)
-      return response.data
-    } catch (error) {
-      console.error('Settings update error:', { error: error.message })
-      return { success: false, error: error.message }
-    }
-  }
-}
+// Sipariş API
+export const orderAPI = {
+  // Sipariş oluştur
+  create: (orderData) => api.post('/orders', orderData),
+  
+  // Kullanıcının siparişlerini getir
+  getMyOrders: () => api.get('/orders/me'),
+  
+  // Sipariş detayı getir
+  getById: (id) => api.get(`/orders/${id}`),
+  
+  // Ödeme yap
+  makePayment: (orderId, paymentData) => api.post(`/orders/${orderId}/pay`, paymentData),
+  
+  // Sipariş durumunu güncelle (admin)
+  updateOrderStatus: (id, status) => api.put(`/orders/${id}/status`, { status }),
+};
 
-// Log endpoints
-export const logAPI = {
-  // Tamamen devre dışı bırakılmış log sistemi
-  sendLog: async (logData) => {
-    // Bu isteği yapmıyoruz, bunun yerine konsola yazdırıyoruz
-    console.log("Log istek", logData);
-    return { success: true }
-  }
-}
+// Adres API
+export const addressAPI = {
+  // Kullanıcı adreslerini getir
+  getAll: () => api.get('/addresses'),
+  
+  // Adres ekle
+  create: (addressData) => api.post('/addresses', addressData),
+  
+  // Adres güncelle
+  update: (id, addressData) => api.put(`/addresses/${id}`, addressData),
+  
+  // Adres sil
+  delete: (id) => api.delete(`/addresses/${id}`),
+};
+
+// Admin API
+export const adminAPI = {
+  // Tüm kullanıcıları getir
+  getAllUsers: () => api.get('/admin/users'),
+  
+  // Kullanıcı detayı getir
+  getUserById: (id) => api.get(`/admin/users/${id}`),
+  
+  // Kullanıcı güncelle
+  updateUser: (id, userData) => api.put(`/admin/users/${id}`, userData),
+  
+  // Kullanıcı sil
+  deleteUser: (id) => api.delete(`/admin/users/${id}`),
+  
+  // Tüm siparişleri getir
+  getAllOrders: () => api.get('/admin/orders'),
+  
+  // Dashboard istatistiklerini getir
+  getDashboardStats: () => api.get('/admin/stats'),
+};
+
+// Yorum API
+export const reviewAPI = {
+  // Ürün yorumlarını getir
+  getByProduct: (productId) => api.get(`/reviews/product/${productId}`),
+  
+  // Yorum ekle
+  create: (reviewData) => api.post('/reviews', reviewData),
+  
+  // Yorum güncelle
+  update: (id, reviewData) => api.put(`/reviews/${id}`, reviewData),
+  
+  // Yorum sil
+  delete: (id) => api.delete(`/reviews/${id}`),
+};
+
+export default api;
