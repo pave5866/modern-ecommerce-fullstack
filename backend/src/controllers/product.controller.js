@@ -77,6 +77,24 @@ exports.getProduct = async (req, res, next) => {
   }
 };
 
+// Basit test için: dosya içeriğini diskten yükleme
+const uploadImageToCloudinary = async (fileStr) => {
+  try {
+    // En basit konfigürasyon ile upload
+    const uploadOptions = {
+      unique_filename: true,
+      overwrite: false
+    };
+
+    // Cloudinary'ye yükle
+    const result = await cloudinary.uploader.upload(fileStr, uploadOptions);
+    return result.secure_url;
+  } catch (error) {
+    logger.error('Cloudinary yükleme hatası:', error);
+    throw new Error(`Cloudinary yükleme hatası: ${error.message}`);
+  }
+};
+
 // Ürün oluştur - Tamamen yeniden düzenlendi
 exports.createProduct = async (req, res, next) => {
   try {
@@ -108,17 +126,12 @@ exports.createProduct = async (req, res, next) => {
           // Base64 formatına dönüştür
           const fileStr = bufferToBase64(file.buffer, file.mimetype);
           
-          try {
-            // Folder parametresi olmadan direkt yükleme
-            const uploadResponse = await cloudinary.uploader.upload(fileStr);
-            
-            // Başarılı yüklenen resmi listeye ekle
-            productData.images.push(uploadResponse.secure_url);
-            logger.info('Resim başarıyla yüklendi:', { url: uploadResponse.secure_url });
-          } catch (uploadError) {
-            logger.error('Resim yükleme hatası:', { error: uploadError.message });
-            throw new AppError(`Resim yükleme hatası: ${uploadError.message}`, 500);
-          }
+          // Cloudinary'ye yükle (basitleştirilmiş yöntem)
+          const imageUrl = await uploadImageToCloudinary(fileStr);
+          
+          // Başarılı yüklenen resmi listeye ekle
+          productData.images.push(imageUrl);
+          logger.info('Resim başarıyla yüklendi:', { url: imageUrl });
         }
         
         logger.info('Tüm resimler yüklendi:', { imageCount: productData.images.length });
@@ -181,15 +194,16 @@ exports.updateProduct = async (req, res, next) => {
       
       // Her dosyayı tek tek işle
       for (const file of req.files) {
+        // Base64 formatına dönüştür
         const fileStr = bufferToBase64(file.buffer, file.mimetype);
         
         try {
-          // Folder parametresi olmadan direkt yükleme
-          const uploadResponse = await cloudinary.uploader.upload(fileStr);
+          // Cloudinary'ye yükle (basitleştirilmiş yöntem)
+          const imageUrl = await uploadImageToCloudinary(fileStr);
           
           // Başarılı yüklenen resmi listeye ekle
-          imagesToKeep.push(uploadResponse.secure_url);
-          logger.info('Yeni resim yüklendi:', { url: uploadResponse.secure_url });
+          imagesToKeep.push(imageUrl);
+          logger.info('Yeni resim yüklendi:', { url: imageUrl });
         } catch (uploadError) {
           logger.error('Resim yükleme hatası:', { error: uploadError.message });
           throw new AppError(`Resim yükleme hatası: ${uploadError.message}`, 500);
