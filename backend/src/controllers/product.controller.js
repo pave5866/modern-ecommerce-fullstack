@@ -1,30 +1,8 @@
 const Product = require('../models/product.model');
 const createError = require('http-errors');
-const path = require('path');
-const parser = require('datauri/parser');
 const AppError = require('../utils/appError');
 const logger = require('../utils/logger');
-const { uploadImage } = require('../utils/imageUpload');
-
-// Buffer'ı base64'e dönüştürme yardımcı fonksiyonu
-const bufferToBase64 = (buffer, mimetype) => {
-  try {
-    logger.debug('Buffer dönüştürme başladı:', {
-      bufferLength: buffer.length,
-      mimetype
-    });
-    
-    // Buffer'ı base64'e dönüştür
-    const base64 = buffer.toString('base64');
-    const dataURI = `data:${mimetype};base64,${base64}`;
-    
-    logger.debug('Buffer dönüştürme başarılı');
-    return dataURI;
-  } catch (error) {
-    logger.error('Buffer dönüştürme hatası:', { error: error.message });
-    throw error;
-  }
-};
+const { uploadImageBuffer } = require('../utils/imageUpload');
 
 // Tüm ürünleri getir
 exports.getAllProducts = async (req, res, next) => {
@@ -55,7 +33,7 @@ exports.getProduct = async (req, res, next) => {
   }
 };
 
-// Ürün oluştur - Tamamen yeniden düzenlendi
+// Ürün oluştur - Streaming yöntemi kullanarak
 exports.createProduct = async (req, res, next) => {
   try {
     // Ürün verilerini hazırla
@@ -68,18 +46,15 @@ exports.createProduct = async (req, res, next) => {
       images: []
     };
 
-    // Resimleri yükle
+    // Resimleri yükle - Stream yöntemi ile
     if (req.files && req.files.length > 0) {
       logger.info('Resim yükleme başladı:', { fileCount: req.files.length });
       
       try {
         // Her dosya için ayrı yükleme işlemi gerçekleştir
         for (const file of req.files) {
-          // Base64 formatına dönüştür
-          const fileDataUrl = bufferToBase64(file.buffer, file.mimetype);
-          
-          // Resmi Cloudinary'ye yükle
-          const imageUrl = await uploadImage(fileDataUrl);
+          // Buffer doğrudan stream olarak yükle
+          const imageUrl = await uploadImageBuffer(file.buffer);
           
           // Başarılı yüklenen resmi listeye ekle
           productData.images.push(imageUrl);
@@ -107,7 +82,7 @@ exports.createProduct = async (req, res, next) => {
   }
 };
 
-// Ürün güncelle 
+// Ürün güncelle - Stream yöntemi ile
 exports.updateProduct = async (req, res, next) => {
   try {
     logger.info('Ürün güncelleme başladı:', { productId: req.params.id });
@@ -139,18 +114,15 @@ exports.updateProduct = async (req, res, next) => {
       }
     }
     
-    // Yeni yüklenen resimleri işle
+    // Yeni yüklenen resimleri işle - Stream yöntemi ile
     if (req.files && req.files.length > 0) {
       logger.info('Yeni resim yükleme başladı:', { fileCount: req.files.length });
       
       // Her dosyayı tek tek işle
       for (const file of req.files) {
-        // Base64 formatına dönüştür
-        const fileDataUrl = bufferToBase64(file.buffer, file.mimetype);
-        
         try {
-          // Resmi Cloudinary'ye yükle
-          const imageUrl = await uploadImage(fileDataUrl);
+          // Buffer doğrudan stream olarak yükle
+          const imageUrl = await uploadImageBuffer(file.buffer);
           
           // Başarılı yüklenen resmi listeye ekle
           imagesToKeep.push(imageUrl);
