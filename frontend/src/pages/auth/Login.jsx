@@ -8,6 +8,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { useAuthStore } from '../../store'
 import { showToast } from '../../utils'
+import logger from '../../utils/logger'
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -128,41 +129,52 @@ export default function Login() {
     setIsSubmitting(true)
     
     try {
-      console.log('Login isteği başlatılıyor...')
-      const response = await login({ ...formData, rememberMe })
-      console.log('Login yanıtı alındı:', response)
+      logger.info('Login isteği başlatılıyor...', { email: formData.email });
       
-      showToast.success('Başarıyla giriş yapıldı')
+      const response = await login({ ...formData, rememberMe });
+      logger.info('Login yanıtı alındı:', { status: response?.status });
+      
+      showToast.success('Başarıyla giriş yapıldı');
       
       // Admin kullanıcıları için /admin sayfasına yönlendir
       if (response?.data?.data?.user?.role === 'admin') {
-        navigate('/admin')
-        return
+        navigate('/admin');
+        return;
       }
       
-      const redirectTo = location.state?.from || '/'
-      const message = location.state?.message
+      const redirectTo = location.state?.from || '/';
+      const message = location.state?.message;
       if (message) {
-        showToast.info(message)
+        showToast.info(message);
       }
-      navigate(redirectTo)
+      navigate(redirectTo);
     } catch (error) {
-      console.error('Login hatası:', error)
+      logger.error('Login hatası:', { 
+        message: error.message,
+        status: error.response?.status
+      });
       
       // Network hatasını ayıklayalım
       if (error.message && error.message.includes('Network Error')) {
-        setNetworkError('Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.')
+        setNetworkError('Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.');
       } else if (error.response?.status === 401) {
-        setNetworkError('E-posta veya şifre hatalı.')
+        setNetworkError('E-posta veya şifre hatalı.');
+      } else if (error.response?.status === 500) {
+        setNetworkError('Sunucu hatası. Lütfen daha sonra tekrar deneyin.');
       } else if (error.response?.data?.message) {
-        setNetworkError(error.response.data.message)
+        setNetworkError(error.response.data.message);
       } else {
-        setNetworkError(error.message || 'Giriş yapılamadı. Lütfen tekrar deneyin.')
+        setNetworkError(error.message || 'Giriş yapılamadı. Lütfen tekrar deneyin.');
       }
       
-      showToast.error(error.message || 'Giriş yapılamadı')
+      // Hata oluştuğunda toast mesajı göster
+      showToast.error(
+        error.response?.data?.message || 
+        error.message || 
+        'Giriş yapılamadı'
+      );
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
   }
 
