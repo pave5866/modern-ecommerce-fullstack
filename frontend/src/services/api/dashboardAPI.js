@@ -1,4 +1,4 @@
-import { api } from '../../services/api'
+import api from '../../services/api'
 
 export const dashboardAPI = {
   getStats: async (timeFilter = 'week') => {
@@ -10,4 +10,4 @@ export const dashboardAPI = {
     const response = await api.post('/dashboard/reset-database')
     return response.data
   }
-} 
+}
