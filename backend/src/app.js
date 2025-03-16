@@ -7,85 +7,71 @@ const errorHandler = require('./middlewares/error');
 const logger = require('./utils/logger');
 require('dotenv').config();
 
+// Modelleri önceden yükle (uygulama çalıştığında tüm modellerin hazır olması için)
+require('./models/product.model');
+require('./models/review.model'); // Review modelini ekledik
+
+// Express uygulaması oluştur
 const app = express();
 
-// İzin verilen originler
-const allowedOrigins = [
-  'https://frabjous-daifuku-431360.netlify.app',
-  'https://modern-ecommerce-fullstack.onrender.com',
-  'http://localhost:3000',
-  'http://localhost:5000',
-  'http://localhost:5173'
-];
-
-// CORS yapılandırması
+// CORS ayarları
 app.use(cors({
-  origin: function (origin, callback) {
-    // origin null olabilir (örn. REST client, Postman gibi araçlar)
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      logger.warn(`CORS hatası: Origin izin verilmedi: ${origin}`);
-      callback(null, true); // Geliştirme aşamasında yine de izin verelim
-    }
-  },
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'https://frabjous-daifuku-431360.netlify.app'
+  ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
 
-// CORS Preflight için OPTIONS isteklerini ele al
-app.options('*', cors());
-
-// Ek CORS middleware - tüm isteklere CORS header'ları ekle
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  // İzin verilen originlere özel header ekle, diğerlerine '*' ata
-  if (origin && allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-  } else {
-    res.header('Access-Control-Allow-Origin', '*');
-  }
-  
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  
-  // Debug amaçlı istekleri loglama
-  if (req.method === 'OPTIONS') {
-    logger.info('OPTIONS isteği:', { 
-      origin: req.headers.origin,
-      method: req.method,
-      path: req.path
-    });
-    return res.status(200).end();
-  }
-  
-  next();
-});
-
-// Kök API endpoint'i
-app.get('/api', (req, res) => {
-  res.json({
-    success: true,
-    message: 'API çalışıyor',
-    version: '1.0.0',
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Middleware
+// JSON parser ve diğer middleware'ler
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Static files
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Front-end static dosyaları için (eğer ihtiyaç olursa)
+app.use(express.static(path.join(__dirname, '../public')));
 
-// Logger middleware
+// Middlewares for logging request and response data
 app.use(startTimer);
-app.use(captureResponseBody);
-app.use(logOnFinish);
+
+// Log tüm istekleri, performans analizi için
+app.use((req, res, next) => {
+  // URL ve method bilgisini logla
+  logger.info(`${req.method} ${req.originalUrl}`);
+  next();
+});
+
+// API Routes
+const authRoutes = require('./routes/auth.routes');
+const userRoutes = require('./routes/user.routes');
+const productRoutes = require('./routes/product.routes');
+const orderRoutes = require('./routes/order.routes');
+const addressRoutes = require('./routes/address.routes');
+const settingsRoutes = require('./routes/settings.routes');
+const adminRoutes = require('./routes/admin.routes');
+const reviewRoutes = require('./routes/review.routes'); // Review routes eklendi
+
+// API Yolları
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/addresses', addressRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/reviews', reviewRoutes); // Review routes kullanıldı
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'API sağlık kontrolü başarılı',
+    timestamp: new Date().toISOString(),
+    uptime: Math.round(process.uptime())
+  });
+});
 
 // Global hata yakalama
 app.use((err, req, res, next) => {
@@ -104,51 +90,23 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-// Routes
-app.use('/api/auth', require('./routes/auth.routes'));
-app.use('/api/addresses', require('./routes/address.routes'));
-app.use('/api/products', require('./routes/product.routes'));
-app.use('/api/coupons', require('./routes/coupon.routes'));
-app.use('/api/orders', require('./routes/order.routes'));
-app.use('/api/users', require('./routes/user.routes'));
-app.use('/api/settings', require('./routes/settings.routes'));
-app.use('/api/dashboard', require('./routes/dashboard.routes'));
-app.use('/api/logs', require('./routes/log.routes'));
-app.use('/api/admin', require('./routes/admin.routes')); 
-
-// Root endpoint
-app.get('/', (req, res) => {
-    res.status(200).json({
-        success: true,
-        message: 'API çalışıyor',
-        version: '1.0.0',
-        timestamp: new Date().toISOString()
-    });
+// 404 Route Handler - Tüm route'lar kontrol edildikten sonra çağrılır
+app.use((req, res, next) => {
+  res.status(404).json({
+    success: false,
+    message: `Üzgünüz, istenen kaynak (${req.originalUrl}) bulunamadı.`
+  });
 });
+
+// Response capture - bu middleware isteğin işlenmesinden sonra çağrılır
+// ve yanıt gövdesini yakalar
+app.use(captureResponseBody);
+
+// Log the request/response info after the request has been completed
+app.use(logOnFinish);
 
 // Error handling middleware
 app.use(logError);
 app.use(errorHandler);
-
-// Yakalanmamış hataları yakala
-process.on('uncaughtException', (err) => {
-  logger.error('Global hata:', { 
-    type: 'uncaughtException',
-    message: err.message,
-    stack: err.stack
-  });
-  
-  // Uygulama güvenli bir şekilde kapatılmalı
-  process.exit(1);
-});
-
-// Yakalanmamış promise redlerini yakala
-process.on('unhandledRejection', (err) => {
-  logger.error('Global hata:', { 
-    type: 'unhandledRejection',
-    message: err.message,
-    stack: err.stack
-  });
-});
 
 module.exports = app;
