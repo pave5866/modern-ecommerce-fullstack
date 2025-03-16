@@ -1,42 +1,5 @@
 const logger = require('./logger');
 const cloudinary = require('../config/cloudinary');
-const streamifier = require('streamifier');
-
-/**
- * Resim yükleme yardımcı fonksiyonu - Stream kullanarak
- * @param {Buffer} fileBuffer - Resim buffer'ı
- * @returns {Promise<string>} - Yüklenen resmin URL'i
- */
-const uploadImageBuffer = (fileBuffer) => {
-  return new Promise((resolve, reject) => {
-    // Stream oluştur
-    const uploadStream = cloudinary.uploader.upload_stream(
-      {
-        resource_type: 'auto',
-      },
-      (error, result) => {
-        if (error) {
-          logger.error('Resim yükleme hatası (stream):', { 
-            errorMessage: error.message,
-            errorName: error.name
-          });
-          reject(new Error(`Resim yükleme hatası: ${error.message}`));
-          return;
-        }
-        
-        logger.info('Resim yükleme başarılı (stream):', { 
-          publicId: result.public_id,
-          url: result.secure_url
-        });
-        
-        resolve(result.secure_url);
-      }
-    );
-    
-    // Buffer'ı stream'e aktar
-    streamifier.createReadStream(fileBuffer).pipe(uploadStream);
-  });
-};
 
 /**
  * Resim yükleme yardımcı fonksiyonu - Base64 kullanarak
@@ -62,6 +25,26 @@ const uploadImage = async (fileDataUrl) => {
       errorName: error.name 
     });
     throw new Error(`Cloudinary resim yükleme hatası: ${error.message}`);
+  }
+};
+
+/**
+ * Buffer'dan base64'e dönüştürme ve yükleme
+ * @param {Buffer} buffer - Resim buffer'ı
+ * @param {string} mimetype - Dosya MIME tipi
+ * @returns {Promise<string>} - Yüklenen resmin URL'i
+ */
+const uploadImageBuffer = async (buffer, mimetype = 'image/jpeg') => {
+  try {
+    // Buffer'ı base64'e dönüştür
+    const base64 = buffer.toString('base64');
+    const dataURI = `data:${mimetype};base64,${base64}`;
+    
+    // Base64'ü Cloudinary'ye yükle
+    return await uploadImage(dataURI);
+  } catch (error) {
+    logger.error('Buffer resim yükleme hatası:', { error: error.message });
+    throw new Error(`Resim yükleme hatası: ${error.message}`);
   }
 };
 
