@@ -57,13 +57,15 @@ const productSchema = new mongoose.Schema(
   }
 );
 
-// Virtualler
+// Virtual tanımı yorum satırına alındı
+/*
 productSchema.virtual('reviews', {
   ref: 'Review',
   localField: '_id',
   foreignField: 'product',
   justOne: false
 });
+*/
 
 // Statik metotlar
 productSchema.statics.calcAverageRatings = async function(productId) {
@@ -93,7 +95,8 @@ productSchema.statics.calcAverageRatings = async function(productId) {
   }
 };
 
-// Middleware
+// Pre-find hook devre dışı bırakıldı
+/*
 productSchema.pre(/^find/, function(next) {
   this.populate({
     path: 'reviews',
@@ -101,6 +104,7 @@ productSchema.pre(/^find/, function(next) {
   });
   next();
 });
+*/
 
 // Indexes
 productSchema.index({ price: 1 });
