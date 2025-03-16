@@ -19,7 +19,8 @@ app.use(cors({
   origin: [
     'http://localhost:3000',
     'http://localhost:5173',
-    'https://frabjous-daifuku-431360.netlify.app'
+    'https://frabjous-daifuku-431360.netlify.app',
+    'https://modern-fullstack-eticaret.netlify.app'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
@@ -52,6 +53,7 @@ const addressRoutes = require('./routes/address.routes');
 const settingsRoutes = require('./routes/settings.routes');
 const adminRoutes = require('./routes/admin.routes');
 const reviewRoutes = require('./routes/review.routes'); // Review routes eklendi
+const logRoutes = require('./routes/log.routes'); // Log routes eklendi
 
 // API Yolları
 app.use('/api/auth', authRoutes);
@@ -62,6 +64,7 @@ app.use('/api/addresses', addressRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reviews', reviewRoutes); // Review routes kullanıldı
+app.use('/api/logs', logRoutes); // Log routes kullanıldı
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
