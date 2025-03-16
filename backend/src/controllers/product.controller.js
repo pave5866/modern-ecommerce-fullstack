@@ -107,10 +107,9 @@ exports.createProduct = async (req, res, next) => {
           // Base64 formatına dönüştür
           const dataURI = bufferToBase64(file.buffer, file.mimetype);
           
-          // Cloudinary'ye yükle
+          // Cloudinary'ye yükle - timestamp ve imza sorunlarını önlemek için api_key ve api_secret direkt kullanmıyoruz
           const result = await cloudinary.uploader.upload(dataURI, {
-            folder: 'products',
-            resource_type: 'auto'
+            folder: 'products'
           });
           
           logger.info('Resim yüklendi:', { url: result.secure_url });
@@ -179,8 +178,7 @@ exports.updateProduct = async (req, res, next) => {
       const uploadPromises = req.files.map(async (file) => {
         const dataURI = bufferToBase64(file.buffer, file.mimetype);
         const result = await cloudinary.uploader.upload(dataURI, {
-          folder: 'products',
-          resource_type: 'auto'
+          folder: 'products'
         });
         
         logger.info('Yeni resim yüklendi:', { url: result.secure_url });
