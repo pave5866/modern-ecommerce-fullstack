@@ -1,41 +1,53 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
 
-// https://vite.dev/config/
+// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+  build: {
+    outDir: 'dist',
+    // Yarı boş modüllere izin ver
+    commonjsOptions: {
+      transformMixedEsModules: true,
+    },
+    // Bağımlılık hatalarını görmezden gel
+    chunkSizeWarningLimit: 1600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: [
+            'react',
+            'react-dom',
+            'react-router-dom',
+            'redux',
+            'react-redux',
+            '@reduxjs/toolkit',
+            'axios',
+          ],
+          ui: ['antd', '@ant-design/icons'],
+        },
+      },
+    },
+  },
   server: {
+    port: 5173,
     proxy: {
       '/api': {
         target: 'https://modern-ecommerce-fullstack.onrender.com',
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/api/, '/api')
-      }
+      },
     },
-    // CORS sorunlarını önlemek için
-    cors: {
-      origin: '*',
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-    }
   },
-  build: {
-    outDir: 'dist',
-    sourcemap: true,
-    // Netlify için özel ayarlar
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom']
-        }
-      }
-    }
+  // Hata ayıklama bilgilerini ekle
+  esbuild: {
+    logOverride: { 'this-is-undefined-in-esm': 'silent' },
+    keepNames: true,
   },
-  // Netlify için özel ayarlar
-  base: '/',
-  // Çevre değişkenleri için
-  define: {
-    'process.env.VITE_APP_API_URL': JSON.stringify('https://modern-ecommerce-fullstack.onrender.com/api')
-  }
-})
+});
