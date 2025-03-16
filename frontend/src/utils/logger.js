@@ -3,7 +3,7 @@
  * Üretim ortamında logları kapatabilir veya sadece belirli seviyeleri gösterebiliriz
  */
 
-import { logAPI } from '../services/api';
+import { logAPI } from '../services';
 
 // Ortam değişkenine göre log seviyesini belirleme
 const LOG_LEVEL = process.env.NODE_ENV === 'production' ? 'error' : 'debug';
