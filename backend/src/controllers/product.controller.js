@@ -59,7 +59,7 @@ exports.getAllProducts = async (req, res, next) => {
     // Toplam ürün sayısı
     const totalProducts = await Product.countDocuments(query);
 
-    // Ürünleri getir
+    // Ürünleri getir - populate işlemini kaldırdık
     const products = await Product.find(query)
       .sort(sortOptions)
       .skip(skip)
@@ -75,10 +75,9 @@ exports.getAllProducts = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: { 
-        products, 
-        pagination 
-      },
+      data: products,
+      pagination: pagination,
+      count: products.length,
       message: 'Ürünler başarıyla getirildi'
     });
   } catch (error) {
@@ -90,6 +89,7 @@ exports.getAllProducts = async (req, res, next) => {
 // Tek ürün getir
 exports.getProduct = async (req, res, next) => {
   try {
+    // populate işlemini kaldırdık
     const product = await Product.findById(req.params.id);
     if (!product) {
       throw createError(404, 'Ürün bulunamadı');
