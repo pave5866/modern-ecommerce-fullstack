@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const logger = require('../utils/logger');
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -127,31 +128,26 @@ userSchema.pre('save', async function(next) {
   }
 });
 
-// Şifre karşılaştırma metodu - İyileştirilmiş ve debug loglaması eklendi
+// Şifre karşılaştırma metodu - Düzeltilmiş
 userSchema.methods.comparePassword = async function(candidatePassword) {
   try {
     // Boş şifre kontrolü
     if (!candidatePassword) {
-      console.log('Karşılaştırma için boş şifre gönderildi');
+      logger.warn('Karşılaştırma için boş şifre gönderildi');
       return false;
     }
     
     // Şifre karşılaştırma log
-    console.log(`Şifre karşılaştırılıyor: ${candidatePassword.substring(0, 1)}*****`);
+    logger.info(`Şifre karşılaştırılıyor: ${candidatePassword.substring(0, 1)}*****`);
     
-    // Acil durum için, şifre direkt karşılaştırması (test amaçlı)
-    // Not: Güvenlik için normalde yapılmamalı, ancak şu anda giriş yapabilmeniz için ekliyoruz
-    if (candidatePassword === process.env.MASTER_PASSWORD) {
-      console.log('Master şifre ile giriş yapıldı');
-      return true;
-    }
+    // Master şifre kontrolü - auth.controller.js'de yapılıyor, burada tekrar kontrol etmeye gerek yok
     
     // Normal şifre karşılaştırma işlemi
     const isMatch = await bcrypt.compare(candidatePassword, this.password);
-    console.log(`Şifre eşleşme sonucu: ${isMatch}`);
+    logger.info(`Şifre eşleşme sonucu: ${isMatch}`);
     return isMatch;
   } catch (error) {
-    console.error('Şifre karşılaştırma hatası:', error.message);
+    logger.error('Şifre karşılaştırma hatası:', error.message);
     // Hata durumunda false dön, throw yapma
     return false;
   }
