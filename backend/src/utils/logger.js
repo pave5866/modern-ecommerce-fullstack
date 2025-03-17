@@ -1,56 +1,73 @@
 const winston = require('winston');
-const path = require('path');
+const { format, transports } = winston;
 
-// Log formatını tanımlama
-const logFormat = winston.format.combine(
-  winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-  winston.format.errors({ stack: true }),
-  winston.format.splat(),
-  winston.format.json(),
-  winston.format.printf(({ level, message, timestamp, ...meta }) => {
-    return `${timestamp} [${level.toUpperCase()}]: ${message} ${Object.keys(meta).length ? JSON.stringify(meta, null, 2) : ''}`;
+// Winston formatları
+const logFormat = format.combine(
+  format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+  format.errors({ stack: true }),
+  format.splat(),
+  format.json()
+);
+
+// Console formatı (renkli ve okunabilir)
+const consoleFormat = format.combine(
+  format.colorize(),
+  format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+  format.printf(({ timestamp, level, message, ...meta }) => {
+    return `${timestamp} [${level}]: ${message} ${
+      Object.keys(meta).length ? JSON.stringify(meta, null, 2) : ''
+    }`;
   })
 );
 
-// Winston logger oluşturma
+// Logger tanımlaması 
 const logger = winston.createLogger({
   level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
   format: logFormat,
+  defaultMeta: { service: 'backend-api' },
   transports: [
-    // Konsola log yazdırma
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.printf(({ level, message, timestamp, ...meta }) => {
-          return `${timestamp} [${level}]: ${message} ${Object.keys(meta).length ? JSON.stringify(meta, null, 2) : ''}`;
-        })
-      ),
+    // Console'a log yazma
+    new transports.Console({
+      format: consoleFormat
     }),
-    // Dosyaya log yazdırma (error seviyesi)
-    new winston.transports.File({ 
-      filename: path.join(__dirname, '../../logs/error.log'), 
+    // Dosyaya hata logları yazma
+    new transports.File({ 
+      filename: 'logs/error.log', 
       level: 'error',
       maxsize: 5242880, // 5MB
       maxFiles: 5,
     }),
-    // Tüm logları dosyaya yazdırma
-    new winston.transports.File({ 
-      filename: path.join(__dirname, '../../logs/combined.log'),
+    // Dosyaya tüm logları yazma
+    new transports.File({ 
+      filename: 'logs/combined.log',
       maxsize: 5242880, // 5MB
       maxFiles: 5,
-    }),
+    })
   ],
-  exitOnError: false,
+  // Beklenmeyen hataları yakalama
+  exceptionHandlers: [
+    new transports.File({ filename: 'logs/exceptions.log' }),
+    new transports.Console({
+      format: consoleFormat
+    })
+  ],
+  // Yakalanmamış promise red nedenlerini yakalama
+  rejectionHandlers: [
+    new transports.File({ filename: 'logs/rejections.log' }),
+    new transports.Console({
+      format: consoleFormat
+    })
+  ]
 });
 
-// Geliştirme ortamında basitleştirilmiş konsol çıktısı
+// Geliştirme ortamında console transport'unu daha okunabilir yap
 if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({
-    format: winston.format.combine(
-      winston.format.colorize(),
-      winston.format.simple()
-    ),
+  logger.add(new transports.Console({
+    format: format.combine(
+      format.colorize(),
+      format.simple()
+    )
   }));
 }
 
-module.exports = logger; 
+module.exports = logger;
