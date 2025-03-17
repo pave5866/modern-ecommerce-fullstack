@@ -1,22 +1,39 @@
 const express = require('express');
 const router = express.Router();
-const { protect, authorize } = require('../middlewares/auth');
-const reviewController = require('../controllers/review.controller');
 
 // Herkese açık rotalar
-router.get('/product/:productId', reviewController.getProductReviews);
+router.get('/product/:productId', (req, res) => {
+  res.status(200).json({ message: `${req.params.productId} ürününün değerlendirmeleri` });
+});
 
-// Kullanıcı girişi gerektiren rotalar
-router.use(protect);
-router.post('/product/:productId', reviewController.createReview);
-router.get('/my-reviews', reviewController.getMyReviews);
-router.put('/:id', reviewController.updateReview);
-router.delete('/:id', reviewController.deleteReview);
+// Kullanıcı rotaları
+router.post('/product/:productId', (req, res) => {
+  res.status(201).json({ message: `${req.params.productId} ürünü için değerlendirme oluşturuldu` });
+});
+
+router.get('/my-reviews', (req, res) => {
+  res.status(200).json({ message: 'Kullanıcı değerlendirmeleri listelendi' });
+});
+
+router.put('/:id', (req, res) => {
+  res.status(200).json({ message: `${req.params.id} değerlendirmesi güncellendi` });
+});
+
+router.delete('/:id', (req, res) => {
+  res.status(200).json({ message: `${req.params.id} değerlendirmesi silindi` });
+});
 
 // Admin rotaları
-router.use(authorize('admin'));
-router.get('/', reviewController.getAllReviews);
-router.put('/:id/approve', reviewController.approveReview);
-router.put('/:id/reject', reviewController.rejectReview);
+router.get('/', (req, res) => {
+  res.status(200).json({ message: 'Tüm değerlendirmeler listelendi' });
+});
+
+router.put('/:id/approve', (req, res) => {
+  res.status(200).json({ message: `${req.params.id} değerlendirmesi onaylandı` });
+});
+
+router.put('/:id/reject', (req, res) => {
+  res.status(200).json({ message: `${req.params.id} değerlendirmesi reddedildi` });
+});
 
 module.exports = router;
