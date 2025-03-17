@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { logger } from '../utils/logger';
+import logger from '../utils/logger';
 
 // Base API URL - .env dosyasından al veya varsayılanı kullan
 const API_URL = import.meta.env.VITE_API_URL || 'https://modern-ecommerce-fullstack.onrender.com/api';
