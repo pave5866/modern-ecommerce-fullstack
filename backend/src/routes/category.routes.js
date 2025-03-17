@@ -1,22 +1,17 @@
 const express = require('express');
 const router = express.Router();
-const { protect, authorize } = require('../middlewares/auth');
 const categoryController = require('../controllers/category.controller');
+const { protect, admin } = require('../middleware/auth.middleware');
 
-// Herkese açık rotalar
+// Genel kategori rotaları
 router.get('/', categoryController.getAllCategories);
-router.get('/:id', categoryController.getCategory);
-router.get('/:slug/products', categoryController.getCategoryProducts);
+router.get('/tree', categoryController.getCategoryTree);
+router.get('/:id', categoryController.getCategoryById);
+router.get('/slug/:slug', categoryController.getCategoryBySlug);
 
-// Koruma middleware'i - Yalnızca giriş yapan kullanıcılar
-router.use(protect);
-
-// Admin middleware'i - Yalnızca admin kullanıcılar
-router.use(authorize('admin'));
-
-// Admin rotaları
-router.post('/', categoryController.createCategory);
-router.put('/:id', categoryController.updateCategory);
-router.delete('/:id', categoryController.deleteCategory);
+// Admin kategori rotaları (yetkilendirme gerekir)
+router.post('/', protect, admin, categoryController.createCategory);
+router.put('/:id', protect, admin, categoryController.updateCategory);
+router.delete('/:id', protect, admin, categoryController.deleteCategory);
 
 module.exports = router;
