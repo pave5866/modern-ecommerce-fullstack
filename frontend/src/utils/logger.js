@@ -3,8 +3,6 @@
  * Üretim ortamında logları kapatabilir veya sadece belirli seviyeleri gösterebiliriz
  */
 
-import { logAPI } from '../services';
-
 // Ortam değişkenine göre log seviyesini belirleme
 const LOG_LEVEL = import.meta.env.NODE_ENV === 'production' ? 'error' : 'debug';
 
@@ -38,16 +36,30 @@ const sendLogToBackend = async (level, message, meta = {}) => {
   try {
     // Sadece üretim ortamında backend'e gönder
     if (import.meta.env.PROD) {
-      await logAPI.sendLog({
-        level,
-        message,
-        meta,
-        source: 'frontend',
-        timestamp: new Date().toISOString()
+      // logAPI kullanımını kaldırdık, döngüsel bağımlılık hatası oluyordu
+      const response = await fetch('/api/logs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          level,
+          message,
+          meta,
+          source: 'frontend',
+          timestamp: new Date().toISOString()
+        })
       });
+      
+      if (!response.ok) {
+        throw new Error('Log gönderme hatası');
+      }
     }
   } catch (error) {
     // Log gönderme hatası durumunda sessizce devam et
+    if (!import.meta.env.PROD) {
+      console.error('Log gönderilirken hata oluştu:', error);
+    }
   }
 };
 
