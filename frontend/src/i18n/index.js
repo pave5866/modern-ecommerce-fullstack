@@ -1,27 +1,32 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
-// Dil dosyaları
-import trTranslation from './locales/tr.json';
-import enTranslation from './locales/en.json';
+import translationTR from './locales/tr.json';
+import translationEN from './locales/en.json';
 
-// i18next konfigürasyonu
+// Mevcut dili tarayıcıdan veya yerel depolamadan alma
+const savedLanguage = localStorage.getItem('language');
+const browserLanguage = navigator.language.split('-')[0];
+const defaultLanguage = savedLanguage || (browserLanguage === 'tr' ? 'tr' : 'en');
+
+const resources = {
+  en: {
+    translation: translationEN,
+  },
+  tr: {
+    translation: translationTR,
+  },
+};
+
 i18n
   .use(initReactI18next)
   .init({
-    resources: {
-      tr: {
-        translation: trTranslation
-      },
-      en: {
-        translation: enTranslation
-      }
-    },
-    lng: localStorage.getItem('language') || 'tr', // Varsayılan dil
-    fallbackLng: 'tr',
+    resources,
+    lng: defaultLanguage,
+    fallbackLng: 'en',
     interpolation: {
-      escapeValue: false // React zaten XSS koruması sağlıyor
-    }
+      escapeValue: false,
+    },
   });
 
 export default i18n;
