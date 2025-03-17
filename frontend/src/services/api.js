@@ -1,345 +1,350 @@
-import axios from 'axios';
-import logger from '../utils/logger';
+import axios from 'axios'
+import { logger } from '../utils'
 
-// API'nin temel URL'si
-const API_URL = import.meta.env.VITE_API_URL || 'https://modern-ecommerce-fullstack.onrender.com/api';
+// API URL'sini çevre değişkeninden al
+const API_URL = import.meta.env.VITE_APP_API_URL || 'https://modern-ecommerce-fullstack.onrender.com/api'
 
-// Axios örneği oluşturma
-const api = axios.create({
+// Alternatif API URL'leri - CORS sorunu durumunda kullanılacak
+const BACKUP_API_URLS = [
+  '/api', // Vite proxy ile çalışır
+  'https://modern-ecommerce-fullstack.onrender.com/api',
+  'https://cors-anywhere.herokuapp.com/https://modern-ecommerce-fullstack.onrender.com/api',
+  'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://modern-ecommerce-fullstack.onrender.com/api')
+];
+
+// Dummy API - geçici çözüm olarak kullanılabilir
+const DUMMY_DATA = {
+  products: [
+    { 
+      _id: '1', 
+      name: 'Siyah T-Shirt', 
+      price: 149.99, 
+      description: 'Rahat ve şık siyah t-shirt', 
+      images: ['https://picsum.photos/id/237/300/400'], 
+      category: 'Giyim',
+      stock: 25,
+      rating: 4.5,
+      numReviews: 12
+    },
+    { 
+      _id: '2', 
+      name: 'Mavi Kot Pantolon', 
+      price: 299.99, 
+      description: 'Slim fit mavi kot pantolon', 
+      images: ['https://picsum.photos/id/238/300/400'], 
+      category: 'Giyim',
+      stock: 15,
+      rating: 4.2,
+      numReviews: 8
+    },
+    { 
+      _id: '3', 
+      name: 'Spor Ayakkabı', 
+      price: 399.99, 
+      description: 'Konforlu spor ayakkabı', 
+      images: ['https://picsum.photos/id/239/300/400'], 
+      category: 'Ayakkabı',
+      stock: 10,
+      rating: 4.7,
+      numReviews: 15
+    },
+    { 
+      _id: '4', 
+      name: 'Deri Cüzdan', 
+      price: 199.99, 
+      description: 'Hakiki deri cüzdan', 
+      images: ['https://picsum.photos/id/240/300/400'], 
+      category: 'Aksesuar',
+      stock: 30,
+      rating: 4.0,
+      numReviews: 5
+    },
+    { 
+      _id: '5', 
+      name: 'Akıllı Saat', 
+      price: 1299.99, 
+      description: 'Çok fonksiyonlu akıllı saat', 
+      images: ['https://picsum.photos/id/241/300/400'], 
+      category: 'Elektronik',
+      stock: 8,
+      rating: 4.8,
+      numReviews: 20
+    },
+    { 
+      _id: '6', 
+      name: 'Bluetooth Kulaklık', 
+      price: 499.99, 
+      description: 'Kablosuz bluetooth kulaklık', 
+      images: ['https://picsum.photos/id/242/300/400'], 
+      category: 'Elektronik',
+      stock: 12,
+      rating: 4.6,
+      numReviews: 18
+    },
+    { 
+      _id: '7', 
+      name: 'Laptop Çantası', 
+      price: 249.99, 
+      description: 'Su geçirmez laptop çantası', 
+      images: ['https://picsum.photos/id/243/300/400'], 
+      category: 'Aksesuar',
+      stock: 20,
+      rating: 4.3,
+      numReviews: 9
+    },
+    { 
+      _id: '8', 
+      name: 'Güneş Gözlüğü', 
+      price: 349.99, 
+      description: 'UV korumalı güneş gözlüğü', 
+      images: ['https://picsum.photos/id/244/300/400'], 
+      category: 'Aksesuar',
+      stock: 15,
+      rating: 4.4,
+      numReviews: 11
+    },
+    { 
+      _id: '9', 
+      name: 'Kış Montu', 
+      price: 899.99, 
+      description: 'Sıcak tutan kış montu', 
+      images: ['https://picsum.photos/id/245/300/400'], 
+      category: 'Giyim',
+      stock: 7,
+      rating: 4.9,
+      numReviews: 25
+    },
+    { 
+      _id: '10', 
+      name: 'Spor Çorap', 
+      price: 49.99, 
+      description: 'Nefes alabilen spor çorap', 
+      images: ['https://picsum.photos/id/246/300/400'], 
+      category: 'Giyim',
+      stock: 50,
+      rating: 4.1,
+      numReviews: 7
+    }
+  ],
+  categories: ['Giyim', 'Ayakkabı', 'Aksesuar', 'Elektronik'],
+  users: [
+    { _id: '1', name: 'Test Kullanıcı', email: 'test@example.com', role: 'user' },
+    { _id: '2', name: 'Admin Kullanıcı', email: 'admin@example.com', role: 'admin' }
+  ],
+  orders: [
+    { _id: '1', userId: '1', products: ['1', '2'], totalAmount: 449.98, status: 'completed' },
+    { _id: '2', userId: '1', products: ['3', '4'], totalAmount: 599.98, status: 'processing' }
+  ]
+};
+
+// Dummy veri kullanımını kontrol eden değişken
+const USE_DUMMY_DATA = false; // Dummy veri kullanımını devre dışı bırak
+
+// Local API instance
+export const api = axios.create({
   baseURL: API_URL,
   headers: {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest'
+  },
+  withCredentials: true, // CORS için true olarak değiştirildi
+  timeout: 30000 // 30 saniye timeout
+})
+
+// Yedek API instance - CORS sorunu durumunda kullanılacak
+let currentBackupUrlIndex = 0;
+export const backupApi = axios.create({
+  baseURL: BACKUP_API_URLS[0],
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest'
   },
   withCredentials: true,
+  timeout: 30000
 });
 
-// API istekleri için interceptor
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
-    // İstek öncesi yapılacak işlemler
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // Dummy veri kullanımı etkinse, API çağrısını engelle ve dummy veri kullan
+    if (USE_DUMMY_DATA) {
+      // Bu config'i işaretle, response interceptor'da kullanacağız
+      config.useDummyData = true;
+      logger.debug('Dummy veri kullanımı etkin, API çağrısı işaretlendi:', config.url);
     }
-    return config;
+    
+    // LocalStorage'dan token'ı al
+    const token = localStorage.getItem('token')
+    
+    // Token varsa header'a ekle
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    
+    logger.debug('API isteği gönderiliyor:', {
+      url: config.url,
+      method: config.method,
+      data: config.data instanceof FormData ? 'FormData içeriği' : config.data
+    });
+    
+    return config
   },
   (error) => {
-    // İstek hatası durumunda
-    logger.error('API istek hatası:', error);
-    return Promise.reject(error);
+    logger.error('API istek hatası:', error.message);
+    return Promise.reject(error)
   }
-);
+)
 
-// API yanıtları için interceptor
+// Response interceptor
 api.interceptors.response.use(
   (response) => {
-    // Başarılı yanıt
-    return response.data;
-  },
-  (error) => {
-    // Hata yanıtı
-    logger.error('API yanıt hatası:', error.response || error.message);
+    // Dummy veri kullanımı etkinse ve config işaretlenmişse, dummy veri döndür
+    if (USE_DUMMY_DATA && response.config.useDummyData) {
+      const url = response.config.url;
+      const method = response.config.method;
+      
+      logger.debug('Dummy veri kullanılıyor, URL:', url);
+      
+      // URL'den endpoint'i çıkar
+      const endpoint = url.split('/').pop();
+      
+      // Dummy veri döndür
+      if (url.includes('/products') && !url.includes('/categories')) {
+        logger.debug('Dummy ürün verileri kullanılıyor');
+        return {
+          ...response,
+          data: { 
+            success: true, 
+            data: DUMMY_DATA.products,
+            total: DUMMY_DATA.products.length,
+            skip: 0,
+            limit: DUMMY_DATA.products.length
+          }
+        };
+      } else if (url.includes('/products/categories') || endpoint === 'categories') {
+        logger.debug('Dummy kategori verileri kullanılıyor');
+        return {
+          ...response,
+          data: { 
+            success: true, 
+            data: DUMMY_DATA.categories 
+          }
+        };
+      } else if (url.includes('/users')) {
+        logger.debug('Dummy kullanıcı verileri kullanılıyor');
+        return {
+          ...response,
+          data: { 
+            success: true, 
+            data: DUMMY_DATA.users 
+          }
+        };
+      } else if (url.includes('/orders')) {
+        logger.debug('Dummy sipariş verileri kullanılıyor');
+        return {
+          ...response,
+          data: { 
+            success: true, 
+            data: DUMMY_DATA.orders 
+          }
+        };
+      }
+    }
     
-    // Token süresi dolmuşsa
-    if (error.response && error.response.status === 401) {
-      localStorage.removeItem('token');
-      // Kullanıcıyı login sayfasına yönlendir
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+    logger.debug('API yanıtı alındı:', {
+      url: response.config.url,
+      status: response.status,
+      data: response.data
+    });
+    
+    return response
+  },
+  async (error) => {
+    // Eğer hata bir yanıt içeriyorsa, detaylı log tut
+    if (error.response) {
+      logger.error('API yanıt hatası:', {
+        url: error.config?.url,
+        status: error.response.status,
+        data: error.response.data,
+        headers: error.response.headers
+      });
+      
+      // 401 Unauthorized hatası
+      if (error.response.status === 401) {
+        logger.warn('Oturum süresi doldu veya geçersiz token');
+        // localStorage.removeItem('token'); // logout
       }
+      
+      // CORS hatası durumunda yedek URL'leri dene
+      if (error.response.status === 0 || error.message.includes('Network Error')) {
+        logger.warn('CORS hatası algılandı, yedek URL deneniyor');
+        // Bir sonraki yedek URL'yi dene
+        currentBackupUrlIndex = (currentBackupUrlIndex + 1) % BACKUP_API_URLS.length;
+        backupApi.defaults.baseURL = BACKUP_API_URLS[currentBackupUrlIndex];
+        
+        // İsteği yedek API ile tekrarla
+        logger.info('İstek yedek URL ile tekrarlanıyor:', backupApi.defaults.baseURL);
+        try {
+          const response = await backupApi(error.config);
+          return response;
+        } catch (backupError) {
+          logger.error('Yedek URL ile istek başarısız:', backupError.message);
+          throw backupError;
+        }
+      }
+    } else if (error.request) {
+      // İstek yapıldı ama yanıt alınamadı
+      logger.error('API yanıt vermedi:', error.request);
+    } else {
+      // İstek yapılırken bir hata oluştu
+      logger.error('API istek hatası:', error.message);
     }
     
-    return Promise.reject(error);
+    return Promise.reject(error)
   }
-);
+)
 
-// Logger API - build hatası için eklendi
-export const logAPI = {
-  sendLog: async (logData) => {
-    // Sadece üretim ortamında backend'e gönder
-    if (import.meta.env.PROD) {
-      try {
-        return await api.post('/logs', logData);
-      } catch (error) {
-        // Loglama hatası olduğunda sessizce devam et
-        logger.error('Log gönderme hatası:', error);
-        return { success: false };
-      }
-    }
-    return { success: true }; // Geliştirme ortamında başarılı gibi davran
+// Yardımcı HTTP methodları
+export const get = async (url, params = {}) => {
+  try {
+    const response = await api.get(url, { params })
+    return response.data
+  } catch (error) {
+    logger.error(`GET ${url} hatası:`, error)
+    throw error
   }
-};
+}
 
-// Kullanıcı API
-export const userAPI = {
-  // Kullanıcı kayıt
-  register: (userData) => api.post('/auth/register', userData),
-  
-  // Kullanıcı girişi
-  login: (credentials) => api.post('/auth/login', credentials),
-  
-  // Kullanıcı çıkışı
-  logout: () => api.get('/auth/logout'),
-  
-  // Kullanıcı bilgilerini getir
-  getProfile: () => api.get('/users/me'),
-  
-  // Kullanıcı bilgilerini güncelle
-  updateProfile: (userData) => api.put('/users/me', userData),
-  
-  // Şifre değiştir
-  changePassword: (passwordData) => api.put('/users/change-password', passwordData),
-  
-  // Şifre sıfırlama isteği
-  requestPasswordReset: (email) => api.post('/auth/forgot-password', { email }),
-  
-  // Şifre sıfırlama
-  resetPassword: (resetToken, newPassword) => api.post(`/auth/reset-password/${resetToken}`, { password: newPassword }),
-};
-
-// Ürün API
-export const productAPI = {
-  // Tüm ürünleri getir
-  getAll: async (limit = 10) => {
-    try {
-      const response = await api.get(`/products?limit=${limit}`);
-      logger.info('API getAll yanıtı:', response);
-      
-      // Backend yanıt formatını kontrol et
-      if (response.success && response.data) {
-        return {
-          success: true,
-          data: response.data || []
-        };
-      }
-      
-      // Eski format veya geçersiz yanıt
-      return {
-        success: false,
-        data: [],
-        error: 'Beklenmeyen API yanıt formatı'
-      };
-    } catch (error) {
-      logger.error('Ürünleri getirme hatası:', error);
-      return {
-        success: false,
-        data: [],
-        error: error.response?.data?.message || 'Ürünler getirilirken bir hata oluştu'
-      };
-    }
-  },
-  
-  // Ürün detayı getir
-  getById: async (id) => {
-    try {
-      const response = await api.get(`/products/${id}`);
-      if (response.success && response.data) {
-        return {
-          success: true,
-          product: response.data
-        };
-      }
-      return {
-        success: false,
-        product: null,
-        error: 'Ürün bulunamadı'
-      };
-    } catch (error) {
-      logger.error('Ürün detayı getirme hatası:', error);
-      return {
-        success: false,
-        product: null,
-        error: error.response?.data?.message || 'Ürün detayı getirilirken bir hata oluştu'
-      };
-    }
-  },
-  
-  // Ürün oluştur
-  create: (productData) => api.post('/products', productData),
-  
-  // Ürün güncelle
-  update: (id, productData) => api.put(`/products/${id}`, productData),
-  
-  // Ürün sil
-  delete: (id) => api.delete(`/products/${id}`),
-  
-  // Kategorileri getir
-  getCategories: async () => {
-    try {
-      const response = await api.get('/products/categories');
-      logger.info('API getCategories yanıtı:', response);
-      
-      if (response.success && response.data) {
-        return {
-          success: true,
-          data: response.data || []
-        };
-      }
-      
-      return {
-        success: false,
-        data: [],
-        error: 'Beklenmeyen API yanıt formatı'
-      };
-    } catch (error) {
-      logger.error('Kategorileri getirme hatası:', error);
-      return {
-        success: false,
-        data: [],
-        error: error.response?.data?.message || 'Kategoriler getirilirken bir hata oluştu'
-      };
-    }
-  },
-  
-  // Kategoriye göre ürün ara
-  getByCategory: async (category) => {
-    try {
-      const response = await api.get(`/products/category/${category}`);
-      
-      if (response.success && response.data) {
-        return {
-          success: true,
-          data: response.data
-        };
-      }
-      
-      return {
-        success: false,
-        data: [],
-        error: 'Beklenmeyen API yanıt formatı'
-      };
-    } catch (error) {
-      logger.error('Kategori ürünlerini getirme hatası:', error);
-      return {
-        success: false,
-        data: [],
-        error: error.response?.data?.message || 'Kategori ürünleri getirilirken bir hata oluştu'
-      };
-    }
-  },
-  
-  // Ürün ara
-  search: async (query) => {
-    try {
-      const response = await api.get(`/products/search?query=${query}`);
-      
-      if (response.success && response.data) {
-        return {
-          success: true,
-          data: response.data
-        };
-      }
-      
-      return {
-        success: false,
-        data: [],
-        error: 'Beklenmeyen API yanıt formatı'
-      };
-    } catch (error) {
-      logger.error('Ürün arama hatası:', error);
-      return {
-        success: false,
-        data: [],
-        error: error.response?.data?.message || 'Ürün araması yapılırken bir hata oluştu'
-      };
-    }
-  },
-  
-  // Öne çıkan ürünleri getir
-  getFeatured: async (limit = 5) => {
-    try {
-      const response = await api.get(`/products/featured?limit=${limit}`);
-      
-      if (response.success && response.data) {
-        return {
-          success: true,
-          data: response.data
-        };
-      }
-      
-      return {
-        success: false,
-        data: [],
-        error: 'Beklenmeyen API yanıt formatı'
-      };
-    } catch (error) {
-      logger.error('Öne çıkan ürünleri getirme hatası:', error);
-      return {
-        success: false,
-        data: [],
-        error: error.response?.data?.message || 'Öne çıkan ürünler getirilirken bir hata oluştu'
-      };
-    }
+export const post = async (url, data = {}) => {
+  try {
+    const response = await api.post(url, data)
+    return response.data
+  } catch (error) {
+    logger.error(`POST ${url} hatası:`, error)
+    throw error
   }
-};
+}
 
-// Sipariş API
-export const orderAPI = {
-  // Sipariş oluştur
-  create: (orderData) => api.post('/orders', orderData),
-  
-  // Kullanıcının siparişlerini getir
-  getMyOrders: () => api.get('/orders/me'),
-  
-  // Sipariş detayı getir
-  getById: (id) => api.get(`/orders/${id}`),
-  
-  // Ödeme yap
-  makePayment: (orderId, paymentData) => api.post(`/orders/${orderId}/pay`, paymentData),
-  
-  // Sipariş durumunu güncelle (admin)
-  updateOrderStatus: (id, status) => api.put(`/orders/${id}/status`, { status }),
-};
+export const put = async (url, data = {}) => {
+  try {
+    const response = await api.put(url, data)
+    return response.data
+  } catch (error) {
+    logger.error(`PUT ${url} hatası:`, error)
+    throw error
+  }
+}
 
-// Adres API
-export const addressAPI = {
-  // Kullanıcı adreslerini getir
-  getAll: () => api.get('/addresses'),
-  
-  // Adres ekle
-  create: (addressData) => api.post('/addresses', addressData),
-  
-  // Adres güncelle
-  update: (id, addressData) => api.put(`/addresses/${id}`, addressData),
-  
-  // Adres sil
-  delete: (id) => api.delete(`/addresses/${id}`),
-};
+export const del = async (url) => {
+  try {
+    const response = await api.delete(url)
+    return response.data
+  } catch (error) {
+    logger.error(`DELETE ${url} hatası:`, error)
+    throw error
+  }
+}
 
-// Admin API
-export const adminAPI = {
-  // Tüm kullanıcıları getir
-  getAllUsers: () => api.get('/admin/users'),
-  
-  // Kullanıcı detayı getir
-  getUserById: (id) => api.get(`/admin/users/${id}`),
-  
-  // Kullanıcı güncelle
-  updateUser: (id, userData) => api.put(`/admin/users/${id}`, userData),
-  
-  // Kullanıcı sil
-  deleteUser: (id) => api.delete(`/admin/users/${id}`),
-  
-  // Tüm siparişleri getir
-  getAllOrders: () => api.get('/admin/orders'),
-  
-  // Dashboard istatistiklerini getir
-  getDashboardStats: () => api.get('/admin/stats'),
-};
-
-// Yorum API
-export const reviewAPI = {
-  // Ürün yorumlarını getir
-  getByProduct: (productId) => api.get(`/reviews/product/${productId}`),
-  
-  // Yorum ekle
-  create: (reviewData) => api.post('/reviews', reviewData),
-  
-  // Yorum güncelle
-  update: (id, reviewData) => api.put(`/reviews/${id}`, reviewData),
-  
-  // Yorum sil
-  delete: (id) => api.delete(`/reviews/${id}`),
-};
-
-export default api;
+export default api
