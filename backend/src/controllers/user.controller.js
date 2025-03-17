@@ -1,6 +1,7 @@
 const User = require('../models/user.model');
 const AppError = require('../utils/appError');
 const { catchAsync } = require('../utils/catchAsync');
+const logger = require('../utils/logger');
 
 // Profil bilgilerini getir
 exports.getProfile = catchAsync(async (req, res) => {
@@ -131,6 +132,27 @@ exports.createUser = catchAsync(async (req, res) => {
 
 // Admin: Kullanıcı detayı getir
 exports.getUser = catchAsync(async (req, res, next) => {
+  // 'me' özel durumu için profil bilgilerini getir
+  if (req.params.id === 'me') {
+    if (!req.user) {
+      return next(new AppError('Lütfen giriş yapın', 401));
+    }
+    
+    logger.info('Kullanıcı kendi profilini istiyor', { userId: req.user.id });
+    
+    const user = await User.findById(req.user.id).select('-password');
+    
+    if (!user) {
+      return next(new AppError('Kullanıcı bulunamadı', 404));
+    }
+    
+    return res.status(200).json({
+      success: true,
+      data: user
+    });
+  }
+  
+  // Normal ID ile kullanıcı bilgisi getir
   const user = await User.findById(req.params.id).select('-password');
 
   if (!user) {
@@ -173,4 +195,4 @@ exports.deleteUser = catchAsync(async (req, res, next) => {
     success: true,
     message: 'Kullanıcı başarıyla silindi'
   });
-}); 
+});
