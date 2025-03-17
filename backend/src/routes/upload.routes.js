@@ -1,72 +1,118 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { protect, authorize } = require('../middlewares/auth');
 const uploadController = require('../controllers/upload.controller');
+const { protect, restrictTo } = require('../middlewares/auth.middleware');
 const logger = require('../utils/logger');
 
-// Multer storage konfigürasyonu (geçici olarak memory storage kullanılıyor)
+/**
+ * Multer yapılandırması - Hafıza tabanlı depolama kullanarak
+ * resimleri doğrudan buffer olarak saklıyoruz
+ */
 const storage = multer.memoryStorage();
 
-// Sadece belirli dosya tiplerini kabul et
+/**
+ * Dosya filtresi - Sadece belirli resim formatlarına izin ver
+ */
 const fileFilter = (req, file, cb) => {
-  // İzin verilen mimetype'lar
-  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+  // Kabul edilen MIME tipleri
+  const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
   
-  if (allowedTypes.includes(file.mimetype)) {
+  if (allowedMimeTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Desteklenmeyen dosya formatı. Sadece JPEG, PNG, WEBP veya GIF yükleyebilirsiniz.'), false);
+    cb(new Error('Desteklenmeyen dosya formatı. Sadece JPEG, PNG, WEBP ve GIF formatları kabul edilir.'), false);
   }
 };
 
-// Multer upload konfigürasyonu
-const upload = multer({ 
-  storage, 
-  fileFilter,
+/**
+ * Multer yükleme işleyicisi - 5MB boyut sınırı ile
+ */
+const upload = multer({
+  storage: storage,
+  fileFilter: fileFilter,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB sınırı
+    fileSize: 5 * 1024 * 1024 // 5MB
   }
 });
 
-// Tek dosya yükleme için middleware
-const singleUpload = (req, res, next) => {
-  upload.single('file')(req, res, (err) => {
+/**
+ * Tek resim yükleme için middleware
+ */
+const uploadSingleImage = (req, res, next) => {
+  upload.single('image')(req, res, (err) => {
     if (err) {
-      logger.error('Resim yükleme hatası:', { error: err.message });
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          logger.warn('Dosya boyutu sınırı aşıldı');
+          return res.status(400).json({
+            success: false,
+            message: 'Dosya boyutu 5MB sınırını aşıyor.'
+          });
+        }
+      }
+      
+      logger.error('Resim yükleme hatası:', err);
       return res.status(400).json({
         success: false,
-        message: err.message || 'Dosya yükleme hatası'
+        message: err.message
       });
     }
+    
+    // Yükleme başarılı
     next();
   });
 };
 
-// Çoklu dosya yükleme için middleware
-const multipleUpload = (req, res, next) => {
-  upload.array('files', 10)(req, res, (err) => {
+/**
+ * Çoklu resim yükleme için middleware
+ */
+const uploadMultipleImages = (req, res, next) => {
+  upload.array('images', 10)(req, res, (err) => {
     if (err) {
-      logger.error('Çoklu resim yükleme hatası:', { error: err.message });
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          logger.warn('Dosya boyutu sınırı aşıldı');
+          return res.status(400).json({
+            success: false,
+            message: 'Bir veya daha fazla dosya 5MB sınırını aşıyor.'
+          });
+        }
+        
+        if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+          logger.warn('Dosya sayısı sınırı aşıldı');
+          return res.status(400).json({
+            success: false,
+            message: 'En fazla 10 resim yükleyebilirsiniz.'
+          });
+        }
+      }
+      
+      logger.error('Çoklu resim yükleme hatası:', err);
       return res.status(400).json({
         success: false,
-        message: err.message || 'Dosya yükleme hatası'
+        message: err.message
       });
     }
+    
+    // Yükleme başarılı
     next();
   });
 };
 
-// Middlewares
-router.use(protect); // Tüm upload rotaları için authentication gerekli
+// Tekli resim yükleme route'u - Giriş yapmış kullanıcılar için
+router.post('/image', protect, uploadSingleImage, uploadController.uploadImage);
 
-// Dosya yükleme rotaları
-router.post('/image', singleUpload, uploadController.uploadImage);
-router.post('/images', multipleUpload, uploadController.uploadMultipleImages);
-router.post('/base64', uploadController.uploadBase64Image);
-router.post('/url', uploadController.uploadImageFromUrl);
+// Çoklu resim yükleme route'u - Giriş yapmış kullanıcılar için
+router.post('/images', protect, uploadMultipleImages, uploadController.uploadMultipleImages);
 
-// Dosya silme (sadece admin ve dosya sahibi)
-router.delete('/image/:publicId', uploadController.deleteImage);
+// Base64 formatında resim yükleme - Giriş yapmış kullanıcılar için
+router.post('/base64', protect, uploadController.uploadBase64Image);
+
+// URL'den resim yükleme - Giriş yapmış kullanıcılar için
+router.post('/url', protect, uploadController.uploadImageFromUrl);
+
+// Resim silme route'u - Sadece admin veya resmin sahibi silebilir
+router.delete('/image/:publicId', protect, uploadController.deleteImage);
 
 module.exports = router;
