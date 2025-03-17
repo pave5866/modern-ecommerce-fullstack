@@ -54,6 +54,7 @@ const settingsRoutes = require('./routes/settings.routes');
 const adminRoutes = require('./routes/admin.routes');
 const reviewRoutes = require('./routes/review.routes'); // Review routes eklendi
 const logRoutes = require('./routes/log.routes'); // Log routes eklendi
+const dashboardRoutes = require('./routes/dashboard.routes'); // Dashboard routes eklendi
 
 // API Yolları
 app.use('/api/auth', authRoutes);
@@ -65,6 +66,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reviews', reviewRoutes); // Review routes kullanıldı
 app.use('/api/logs', logRoutes); // Log routes kullanıldı
+app.use('/api/dashboard', dashboardRoutes); // Dashboard routes kullanıldı
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
