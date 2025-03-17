@@ -1,76 +1,23 @@
+import React from 'react'
 import { createBrowserRouter } from 'react-router-dom'
-import RootLayout from '../layouts/RootLayout'
-import AdminLayout from '../layouts/AdminLayout'
-import { PrivateRoute } from '../components/auth'
+import { Layout } from '../components/layout'
+import Home from '../pages/Home'
+import ErrorPage from '../pages/ErrorPage'
 
-// Pages
-import {
-  Home,
-  Products,
-  ProductDetail,
-  Cart,
-  Profile,
-  About,
-  Contact,
-  FAQ,
-  NotFound,
-  CategoryProducts
-} from '../pages'
-
-// Auth Pages
-import { Login, Register, ForgotPassword } from '../pages/auth'
-
-// Admin Pages
-import {
-  Dashboard,
-  AdminProducts,
-  Users,
-  Orders,
-  Settings
-} from '../pages/admin'
-
+// Ana router yapılandırması
 const router = createBrowserRouter([
   {
     path: '/',
-    element: <RootLayout />,
+    element: <Layout />,
+    errorElement: <ErrorPage />,
     children: [
-      { index: true, element: <Home /> },
-      { path: 'products', element: <Products /> },
-      { path: 'products/:id', element: <ProductDetail /> },
-      { path: 'category/:category', element: <CategoryProducts /> },
-      { path: 'cart', element: <Cart /> },
-      { path: 'about', element: <About /> },
-      { path: 'contact', element: <Contact /> },
-      { path: 'faq', element: <FAQ /> },
-      { path: 'login', element: <Login /> },
-      { path: 'register', element: <Register /> },
-      { path: 'forgot-password', element: <ForgotPassword /> },
       {
-        path: 'profile',
-        element: (
-          <PrivateRoute>
-            <Profile />
-          </PrivateRoute>
-        )
+        index: true,
+        element: <Home />
       },
-      { path: '*', element: <NotFound /> }
-    ]
-  },
-  {
-    path: '/admin',
-    element: (
-      <PrivateRoute requireAdmin>
-        <AdminLayout />
-      </PrivateRoute>
-    ),
-    children: [
-      { index: true, element: <Dashboard /> },
-      { path: 'products', element: <AdminProducts /> },
-      { path: 'users', element: <Users /> },
-      { path: 'orders', element: <Orders /> },
-      { path: 'settings', element: <Settings /> }
+      // Diğer sayfa rotaları buraya eklenecek
     ]
   }
 ])
 
-export default router 
+export default router
