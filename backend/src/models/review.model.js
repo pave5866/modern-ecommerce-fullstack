@@ -1,83 +1,187 @@
 const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
 
-const reviewSchema = new mongoose.Schema(
+const reviewSchema = new Schema(
   {
-    product: {
-      type: mongoose.Schema.ObjectId,
-      ref: 'Product',
-      required: [true, 'Değerlendirme bir ürüne ait olmalıdır']
-    },
     user: {
-      type: mongoose.Schema.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'Değerlendirme bir kullanıcıya ait olmalıdır']
+      required: true
+    },
+    product: {
+      type: Schema.Types.ObjectId,
+      ref: 'Product',
+      required: true
+    },
+    order: {
+      type: Schema.Types.ObjectId,
+      ref: 'Order'
     },
     rating: {
       type: Number,
-      required: [true, 'Değerlendirme puanı gereklidir'],
+      required: true,
       min: 1,
       max: 5
     },
-    review: {
+    title: {
       type: String,
-      required: [true, 'Değerlendirme metni gereklidir'],
-      trim: true
+      required: true,
+      trim: true,
+      maxlength: 100
     },
-    createdAt: {
-      type: Date,
-      default: Date.now
+    comment: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 1000
+    },
+    pros: [String],
+    cons: [String],
+    images: [String],
+    upvotes: [{
+      type: Schema.Types.ObjectId,
+      ref: 'User'
+    }],
+    downvotes: [{
+      type: Schema.Types.ObjectId,
+      ref: 'User'
+    }],
+    status: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending'
+    },
+    isVerifiedPurchase: {
+      type: Boolean,
+      default: false
+    },
+    adminResponse: {
+      response: String,
+      date: Date,
+      admin: {
+        type: Schema.Types.ObjectId,
+        ref: 'User'
+      }
+    },
+    isEdited: {
+      type: Boolean,
+      default: false
     }
   },
   {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
+    timestamps: true
   }
 );
 
-// Her ürün ve kullanıcı kombinasyonu için sadece bir değerlendirme olabilir
-reviewSchema.index({ product: 1, user: 1 }, { unique: true });
+// Her kullanıcı bir ürün için sadece bir inceleme yapabilir
+reviewSchema.index({ user: 1, product: 1 }, { unique: true });
 
-// Ürünün ortalama puanını hesaplayan statik metod
-reviewSchema.statics.calcAverageRatings = async function(productId) {
-  const stats = await this.aggregate([
-    {
-      $match: { product: productId }
-    },
-    {
-      $group: {
-        _id: '$product',
-        nRating: { $sum: 1 },
-        avgRating: { $avg: '$rating' }
+// Diğer indeksler
+reviewSchema.index({ product: 1, status: 1, createdAt: -1 }); // Ürün sayfası sıralaması için
+reviewSchema.index({ user: 1, createdAt: -1 }); // Kullanıcının incelemelerini listelemek için
+reviewSchema.index({ status: 1 }); // Admin onay filtresi için
+
+// Ürün ortalama puanını hesaplama statik metodu
+reviewSchema.statics.getAverageRating = async function(productId) {
+  try {
+    const result = await this.aggregate([
+      {
+        $match: {
+          product: productId,
+          status: 'approved'
+        }
+      },
+      {
+        $group: {
+          _id: '$product',
+          averageRating: { $avg: '$rating' },
+          numReviews: { $sum: 1 }
+        }
       }
-    }
-  ]);
+    ]);
 
-  // Eğer bu ürüne ait değerlendirmeler varsa
-  if (stats.length > 0) {
-    await this.model('Product').findByIdAndUpdate(productId, {
-      ratings: stats[0].avgRating,
-      numReviews: stats[0].nRating
-    });
-  } else {
-    // Eğer değerlendirme yoksa
-    await this.model('Product').findByIdAndUpdate(productId, {
-      ratings: 0,
-      numReviews: 0
-    });
+    if (result.length > 0) {
+      return {
+        averageRating: parseFloat(result[0].averageRating.toFixed(1)),
+        numReviews: result[0].numReviews
+      };
+    } else {
+      return {
+        averageRating: 0,
+        numReviews: 0
+      };
+    }
+  } catch (error) {
+    console.error('Derecelendirme hesaplanırken hata oluştu:', error);
+    throw error;
   }
 };
 
-// Yeni değerlendirme oluşturulduğunda ürünün ortalama puanını güncelle
-reviewSchema.post('save', function() {
-  // this.constructor ile şema statik metoduna erişim
-  this.constructor.calcAverageRatings(this.product);
+// Puan dağılımını hesaplama
+reviewSchema.statics.getRatingDistribution = async function(productId) {
+  try {
+    const result = await this.aggregate([
+      {
+        $match: {
+          product: productId,
+          status: 'approved'
+        }
+      },
+      {
+        $group: {
+          _id: '$rating',
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { _id: -1 }
+      }
+    ]);
+
+    // Tüm değerlendirme seviyelerini (1-5) içerecek şekilde format
+    const distribution = {
+      1: 0, 2: 0, 3: 0, 4: 0, 5: 0
+    };
+
+    result.forEach(item => {
+      distribution[item._id] = item.count;
+    });
+
+    return distribution;
+  } catch (error) {
+    console.error('Puan dağılımı hesaplanırken hata oluştu:', error);
+    throw error;
+  }
+};
+
+// İnceleme oluşturulduğunda veya güncellendiğinde ürünün puanını güncelle
+reviewSchema.post('save', async function() {
+  try {
+    // Ürün modelini dinamik olarak import et (döngüsel bağımlılıktan kaçınmak için)
+    const Product = mongoose.model('Product');
+    const stats = await this.constructor.getAverageRating(this.product);
+
+    await Product.findByIdAndUpdate(this.product, {
+      rating: stats.averageRating,
+      numReviews: stats.numReviews
+    });
+  } catch (error) {
+    console.error('İnceleme sonrası ürün güncelleme hatası:', error);
+  }
 });
 
-// Değerlendirme silindiğinde veya güncellendiğinde ürünün ortalama puanını güncelle
-reviewSchema.post(/^findOneAnd/, async function(doc) {
-  if (doc) {
-    await doc.constructor.calcAverageRatings(doc.product);
+// Silme işlemi sonrası ürün puanını güncelle
+reviewSchema.post('remove', async function() {
+  try {
+    const Product = mongoose.model('Product');
+    const stats = await this.constructor.getAverageRating(this.product);
+
+    await Product.findByIdAndUpdate(this.product, {
+      rating: stats.averageRating,
+      numReviews: stats.numReviews
+    });
+  } catch (error) {
+    console.error('İnceleme silme sonrası ürün güncelleme hatası:', error);
   }
 });
 
