@@ -1,63 +1,102 @@
+import React from 'react'
 import { Link } from 'react-router-dom'
-import { Button } from '../components/ui'
+import { Helmet } from 'react-helmet-async'
+import { useTranslation } from 'react-i18next'
+import { motion } from 'framer-motion'
+import { FaHome, FaArrowLeft, FaSearch } from 'react-icons/fa'
 
-export default function NotFound() {
+const NotFound = () => {
+  const { t } = useTranslation()
+
   return (
-    <div className="container mx-auto px-4 py-16">
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-        <div className="relative mb-8">
-          {/* 404 Animasyonu */}
-          <div className="text-9xl font-bold text-gray-200 dark:text-gray-800">
-            404
-          </div>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-4xl font-bold text-gray-900 dark:text-gray-100">
-              Sayfa Bulunamadı
-            </div>
-          </div>
-        </div>
-
-        <p className="text-lg text-gray-600 dark:text-gray-400 mb-8 max-w-lg">
-          Aradığınız sayfa taşınmış, silinmiş veya hiç var olmamış olabilir.
-          Ana sayfaya dönerek alışverişe devam edebilirsiniz.
-        </p>
-
-        <div className="flex flex-col sm:flex-row gap-4">
-          <Link to="/">
-            <Button>
-              Ana Sayfaya Dön
-            </Button>
-          </Link>
-          
-          <Link to="/products">
-            <Button variant="secondary">
-              Ürünlere Göz At
-            </Button>
-          </Link>
-        </div>
-
-        {/* İllüstrasyon */}
-        <div className="mt-12 max-w-sm mx-auto">
-          <svg
-            className="w-full h-auto text-gray-400 dark:text-gray-600"
-            xmlns="http://www.w3.org/2000/svg"
-            data-name="Layer 1"
-            viewBox="0 0 1120.59226 777.91584"
+    <div className="not-found-page min-h-screen flex items-center justify-center px-4">
+      <Helmet>
+        <title>{t('notFound.title')} | Modern E-Ticaret</title>
+      </Helmet>
+      
+      <div className="w-full max-w-4xl bg-white dark:bg-gray-800 rounded-xl shadow-xl overflow-hidden">
+        <div className="md:flex">
+          <motion.div 
+            className="md:w-1/2 flex items-center justify-center p-12 bg-indigo-600"
+            initial={{ opacity: 0, x: -50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5 }}
           >
-            <title>404 İllüstrasyon</title>
-            <circle cx="212.59226" cy="103" r="64" fill="currentColor"/>
-            <path
-              d="M563.68016,404.16381c0,151.01141-89.77389,203.73895-200.51559,203.73895S162.649,555.17522,162.649,404.16381,363.16457,61.04208,363.16457,61.04208,563.68016,253.1524,563.68016,404.16381Z"
-              transform="translate(-39.70387 -61.04208)"
-              fill="currentColor"
-            />
-            <polygon
-              points="316.156 523.761 318.21 397.378 403.674 241.024 318.532 377.552 319.455 320.725 378.357 207.605 319.699 305.687 319.699 305.687 321.359 203.481 384.433 113.423 321.621 187.409 322.658 0 316.138 248.096 316.674 237.861 252.547 139.704 315.646 257.508 309.671 371.654 309.493 368.625 235.565 265.329 309.269 379.328 308.522 393.603 308.388 393.818 308.449 394.99 293.29 684.589 313.544 684.589 315.974 535.005 389.496 421.285 316.156 523.761"
-              fill="currentColor"
-            />
-          </svg>
+            <div className="text-center">
+              <motion.div
+                className="text-white text-9xl font-bold mb-6"
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+              >
+                404
+              </motion.div>
+              
+              <motion.div 
+                className="text-indigo-200 text-xl"
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.5, delay: 0.4 }}
+              >
+                {t('notFound.pageNotFound')}
+              </motion.div>
+            </div>
+          </motion.div>
+          
+          <motion.div 
+            className="md:w-1/2 p-12"
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+          >
+            <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-6">
+              {t('notFound.oops')}
+            </h2>
+            
+            <p className="text-gray-600 dark:text-gray-300 mb-8">
+              {t('notFound.message')}
+            </p>
+            
+            <div className="space-y-4">
+              <Link 
+                to="/" 
+                className="flex items-center justify-center space-x-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-6 rounded-lg transition-colors"
+              >
+                <FaHome />
+                <span>{t('notFound.backToHome')}</span>
+              </Link>
+              
+              <Link 
+                to="/products" 
+                className="flex items-center justify-center space-x-2 w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600 py-3 px-6 rounded-lg transition-colors"
+              >
+                <FaArrowLeft />
+                <span>{t('notFound.browseProducts')}</span>
+              </Link>
+              
+              <div className="relative mt-8">
+                <input 
+                  type="text" 
+                  placeholder={t('notFound.searchPlaceholder')}
+                  className="w-full bg-gray-100 dark:bg-gray-700 rounded-lg pl-10 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              </div>
+            </div>
+            
+            <div className="mt-12 text-center text-gray-500 dark:text-gray-400">
+              <p>
+                {t('notFound.contactSupport')}{' '}
+                <a href="mailto:support@example.com" className="text-indigo-600 dark:text-indigo-400 hover:underline">
+                  support@example.com
+                </a>
+              </p>
+            </div>
+          </motion.div>
         </div>
       </div>
     </div>
   )
-} 
+}
+
+export default NotFound
