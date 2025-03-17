@@ -1,103 +1,110 @@
+import React from 'react'
 import { Link } from 'react-router-dom'
-import { ShoppingCartIcon } from '@heroicons/react/24/outline'
-import { useCartStore } from '../../store'
-import { showToast } from '../../utils'
 import { motion } from 'framer-motion'
-import { useAuthStore } from '../../store'
+import { FaShoppingCart, FaHeart } from 'react-icons/fa'
+import { useTranslation } from 'react-i18next'
 
-export function ProductCard({ product }) {
-  const { addItem } = useCartStore()
-  const { user } = useAuthStore()
-
-  const handleAddToCart = (e) => {
-    e.preventDefault()
-    
-    if (user?.role === 'admin') {
-      showToast.error('Admin kullanıcılar sepete ürün ekleyemez')
-      return
+const ProductCard = ({ product }) => {
+  const { t } = useTranslation()
+  
+  // Animation variants
+  const cardVariants = {
+    initial: { opacity: 0, y: 20 },
+    animate: { opacity: 1, y: 0, transition: { duration: 0.3 } },
+    hover: { 
+      scale: 1.05, 
+      boxShadow: '0 10px 20px rgba(0,0,0,0.1)',
+      transition: { duration: 0.2 }
     }
-
-    // Sepette ürünler varsa ve admin hesabına geçildiyse (yanlış state durumu)
-    // sepeti temizle ve uyarı göster
-    const cartItems = useCartStore.getState().items
-    if (user?.role === 'admin' && cartItems.length > 0) {
-      const clearCart = useCartStore.getState().clearCart
-      clearCart()
-      showToast.warning('Admin hesabına geçiş yapıldığı için sepetiniz temizlendi')
-      return
-    }
-
-    addItem({
-      id: product._id,
-      name: product.name,
-      price: product.price,
-      images: product.images,
-      category: product.category
-    })
-    showToast.success('Ürün sepete eklendi')
   }
 
-  // Varsayılan ürün resmi
-  const defaultImage = 'https://via.placeholder.com/300x400'
-
-  // Resim URL'sini kontrol et ve varsayılan resmi kullan
-  const imageUrl = product?.images?.length > 0 && product.images[0] 
-    ? product.images[0] 
-    : defaultImage
-
+  const buttonVariants = {
+    hover: { scale: 1.1, transition: { duration: 0.2 } }
+  }
+  
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="h-full w-full"
-      whileHover={{ 
-        y: -5,
-        boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
-      }}
+    <motion.div 
+      className="product-card bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-md"
+      variants={cardVariants}
+      initial="initial"
+      animate="animate"
+      whileHover="hover"
     >
-      <Link
-        to={`/products/${product._id}`}
-        className="group relative flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 h-full w-full shadow-sm hover:shadow-md transition-all duration-300"
-      >
-        <div className="relative h-[200px] xs:h-[220px] sm:h-[180px] md:h-[160px] lg:h-[180px] flex items-center justify-center bg-gray-100 dark:bg-gray-900 overflow-hidden">
-          <motion.img
-            src={imageUrl}
-            alt={product?.name || 'Ürün'}
-            onError={(e) => {
-              e.target.onerror = null
-              e.target.src = defaultImage
-            }}
-            className="max-h-full max-w-full h-auto w-auto object-contain transition-all duration-500"
-            loading="lazy"
-            whileHover={{ scale: 1.05 }}
+      <Link to={`/products/${product.id}`}>
+        <div className="relative overflow-hidden h-48">
+          <img 
+            src={product.images[0]} 
+            alt={product.name}
+            className="w-full h-full object-cover transition-transform duration-300 hover:scale-110"
           />
-          <motion.div 
-            className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300"
-            initial={{ opacity: 0 }}
-            whileHover={{ opacity: 1 }}
-          />
+          {product.discount && (
+            <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+              {product.discount}% {t('product.discount')}
+            </div>
+          )}
         </div>
-        <div className="flex flex-col p-2 md:p-3 mt-auto">
-          <h3 className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white line-clamp-1">
-            {product?.name || 'İsimsiz Ürün'}
-          </h3>
-          <p className="text-[10px] xs:text-xs text-gray-500 dark:text-gray-400">
-            {product?.category || 'Kategorisiz'}
-          </p>
-          <p className="text-sm xs:text-base font-medium text-gray-900 dark:text-white mt-1">
-            ₺{product?.price?.toLocaleString('tr-TR') || '0'}
-          </p>
-        </div>
-        <motion.button
-          onClick={handleAddToCart}
-          className="absolute bottom-2 right-2 rounded-full bg-primary-600 p-1.5 sm:p-2 text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-        >
-          <ShoppingCartIcon className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
-        </motion.button>
       </Link>
+      
+      <div className="p-4">
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">{product.name}</h3>
+        
+        <div className="flex justify-between items-center mt-2">
+          <div>
+            <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
+              ₺{product.price}
+            </span>
+            {product.oldPrice && (
+              <span className="ml-2 text-sm text-gray-500 line-through">
+                ₺{product.oldPrice}
+              </span>
+            )}
+          </div>
+          
+          <div className="flex space-x-2">
+            <motion.button 
+              className="p-2 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300 rounded-full"
+              variants={buttonVariants}
+              whileHover="hover"
+              aria-label={t('product.addToCart')}
+            >
+              <FaShoppingCart />
+            </motion.button>
+            
+            <motion.button 
+              className="p-2 bg-pink-100 dark:bg-pink-900 text-pink-600 dark:text-pink-300 rounded-full"
+              variants={buttonVariants}
+              whileHover="hover"
+              aria-label={t('product.addToWishlist')}
+            >
+              <FaHeart />
+            </motion.button>
+          </div>
+        </div>
+        
+        {/* Rating */}
+        {product.rating && (
+          <div className="mt-2 flex items-center">
+            <div className="flex text-yellow-400">
+              {[...Array(5)].map((_, i) => (
+                <svg 
+                  key={i} 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  className={`h-4 w-4 ${i < Math.floor(product.rating) ? 'fill-current' : 'text-gray-300'}`} 
+                  viewBox="0 0 20 20" 
+                  fill="currentColor"
+                >
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+              ))}
+            </div>
+            <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
+              ({product.reviewCount} {t('product.reviews')})
+            </span>
+          </div>
+        )}
+      </div>
     </motion.div>
   )
-} 
+}
+
+export default ProductCard
