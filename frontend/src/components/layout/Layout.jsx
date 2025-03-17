@@ -1,17 +1,24 @@
+import React from 'react'
 import { Outlet } from 'react-router-dom'
 import { Navbar } from '../navbar'
 import { Footer } from '../footer'
-import { BackToTop } from '../ui'
+import { PageTransition, BackToTop, Breadcrumb } from '../ui'
 
-export default function Layout() {
+const Layout = () => {
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-50">
       <Navbar />
-      <main className="flex-1">
-        <Outlet />
+      
+      <main className="flex-grow">
+        <PageTransition>
+          <Outlet />
+        </PageTransition>
       </main>
-      <Footer />
+      
       <BackToTop />
+      <Footer />
     </div>
   )
-} 
+}
+
+export default Layout
