@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
+import { FaArrowUp } from 'react-icons/fa'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronUpIcon } from '@heroicons/react/24/outline'
 
-export function BackToTop() {
+const BackToTop = () => {
   const [isVisible, setIsVisible] = useState(false)
 
+  // Sayfa aşağı indikçe butonu göster
   useEffect(() => {
     const toggleVisibility = () => {
       if (window.pageYOffset > 300) {
@@ -18,6 +19,7 @@ export function BackToTop() {
     return () => window.removeEventListener('scroll', toggleVisibility)
   }, [])
 
+  // Sayfanın başına kaydırma fonksiyonu
   const scrollToTop = () => {
     window.scrollTo({
       top: 0,
@@ -29,17 +31,21 @@ export function BackToTop() {
     <AnimatePresence>
       {isVisible && (
         <motion.button
-          initial={{ opacity: 0, scale: 0.5 }}
+          initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.5 }}
+          exit={{ opacity: 0, scale: 0.8 }}
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           onClick={scrollToTop}
-          className="fixed bottom-8 right-8 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm text-white shadow-lg hover:bg-black/70 transition-colors focus:outline-none"
+          className="fixed right-5 bottom-5 p-3 rounded-full bg-purple-600 text-white shadow-lg z-50 hover:bg-purple-700 transition-colors duration-300"
+          aria-label="Sayfanın başına git"
         >
-          <ChevronUpIcon className="h-8 w-8" />
+          <FaArrowUp size={18} />
         </motion.button>
       )}
     </AnimatePresence>
   )
-} 
+}
+
+export { BackToTop }
+export default BackToTop
