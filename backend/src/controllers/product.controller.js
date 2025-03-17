@@ -1,87 +1,62 @@
 const Product = require('../models/product.model');
 const createError = require('http-errors');
+const path = require('path');
+const parser = require('datauri/parser');
 const AppError = require('../utils/appError');
-const logger = require('../utils/logger');
 const cloudinary = require('../config/cloudinary');
+const logger = require('../utils/logger');
+
+// Buffer'ı DataURI'ye dönüştür
+const formatBuffer = (file) => {
+  try {
+    if (!file || !file.buffer || !file.originalname) {
+      throw new Error('Geçersiz dosya formatı');
+    }
+    logger.debug('Buffer dönüştürme başladı:', {
+      fileName: file.originalname,
+      size: file.size,
+      mimeType: file.mimetype
+    });
+    const extName = path.extname(file.originalname).toString();
+    const datauri = new parser();
+    const result = datauri.format(extName, file.buffer).content;
+    logger.debug('Buffer dönüştürme başarılı');
+    return result;
+  } catch (error) {
+    logger.error('Buffer dönüştürme hatası:', error);
+    throw new AppError('Dosya formatı dönüştürme hatası: ' + error.message, 500);
+  }
+};
+
+// Buffer'ı base64'e dönüştürme yardımcı fonksiyonu
+const bufferToBase64 = (buffer, mimetype) => {
+  try {
+    logger.debug('Buffer dönüştürme başladı:', {
+      bufferLength: buffer.length,
+      mimetype
+    });
+    
+    // Buffer'ı base64'e dönüştür
+    const base64 = buffer.toString('base64');
+    const dataURI = `data:${mimetype};base64,${base64}`;
+    
+    logger.debug('Buffer dönüştürme başarılı');
+    return dataURI;
+  } catch (error) {
+    logger.error('Buffer dönüştürme hatası:', { error: error.message });
+    throw error;
+  }
+};
 
 // Tüm ürünleri getir
 exports.getAllProducts = async (req, res, next) => {
   try {
-    const { keyword, category, minPrice, maxPrice, sort, page = 1, limit = 10 } = req.query;
-    const skip = (page - 1) * limit;
-
-    // Temel sorgu
-    const query = {};
-
-    // Arama kelimesi varsa
-    if (keyword) {
-      query.$or = [
-        { name: { $regex: keyword, $options: 'i' } },
-        { description: { $regex: keyword, $options: 'i' } }
-      ];
-    }
-
-    // Kategori filtresi
-    if (category) {
-      query.category = category;
-    }
-
-    // Fiyat filtresi
-    if (minPrice || maxPrice) {
-      query.price = {};
-      if (minPrice) query.price.$gte = Number(minPrice);
-      if (maxPrice) query.price.$lte = Number(maxPrice);
-    }
-
-    // Sıralama seçenekleri
-    let sortOptions = {};
-    if (sort) {
-      switch (sort) {
-        case 'price_asc':
-          sortOptions = { price: 1 };
-          break;
-        case 'price_desc':
-          sortOptions = { price: -1 };
-          break;
-        case 'latest':
-          sortOptions = { createdAt: -1 };
-          break;
-        case 'ratings':
-          sortOptions = { ratings: -1 };
-          break;
-        default:
-          sortOptions = { createdAt: -1 };
-      }
-    } else {
-      sortOptions = { createdAt: -1 };
-    }
-
-    // Toplam ürün sayısı
-    const totalProducts = await Product.countDocuments(query);
-
-    // Ürünleri getir - populate işlemini kaldırdık
-    const products = await Product.find(query)
-      .sort(sortOptions)
-      .skip(skip)
-      .limit(Number(limit));
-
-    // Sayfalama bilgisi
-    const pagination = {
-      total: totalProducts,
-      page: Number(page),
-      pages: Math.ceil(totalProducts / limit),
-      limit: Number(limit)
-    };
-
+    const products = await Product.find();
     res.status(200).json({
       success: true,
-      data: products,
-      pagination: pagination,
-      count: products.length,
-      message: 'Ürünler başarıyla getirildi'
+      data: products
     });
   } catch (error) {
-    logger.error(`Ürünleri getirme hatası: ${error.message}`);
     next(error);
   }
 };
@@ -89,173 +64,161 @@ exports.getAllProducts = async (req, res, next) => {
 // Tek ürün getir
 exports.getProduct = async (req, res, next) => {
   try {
-    // populate işlemini kaldırdık
     const product = await Product.findById(req.params.id);
     if (!product) {
       throw createError(404, 'Ürün bulunamadı');
     }
     res.status(200).json({
       success: true,
-      data: product,
-      message: 'Ürün başarıyla getirildi'
+      data: product
     });
   } catch (error) {
-    logger.error(`Ürün getirme hatası: ${error.message}`);
     next(error);
   }
 };
 
-// Ürün oluştur - Resim işleme etkinleştirildi
+// Ürün oluştur
 exports.createProduct = async (req, res, next) => {
   try {
-    const { name, description, price, category, stock, featured } = req.body;
-    let { images } = req.body;
-
-    // Tüm gerekli alanların kontrolü
-    if (!name || !description || !price || !category || stock === undefined) {
-      throw createError(400, 'Lütfen tüm gerekli alanları doldurun');
-    }
-
-    // Ürün verilerini hazırla
     const productData = {
-      name,
-      description,
-      price: Number(price),
-      category,
-      stock: Number(stock),
-      featured: featured === 'true' || featured === true
+      name: req.body.name.trim(),
+      description: req.body.description.trim(),
+      price: parseFloat(req.body.price),
+      category: req.body.category.trim(),
+      stock: parseInt(req.body.stock),
+      images: []
     };
 
-    // Resim işleme bölümü
-    try {
-      // Base64 veya resim URL'leri dizisi olarak gönderilmişse
-      if (images && Array.isArray(images) && images.length > 0) {
-        const uploadedImages = [];
-        
-        for (const image of images) {
-          // Eğer zaten bir URL ise ve cloudinary içeriyorsa, doğrudan ekle
-          if (typeof image === 'string' && (image.includes('cloudinary') || image.includes('/uploads/'))) {
-            uploadedImages.push(image);
-          } 
-          // Base64 formatındaysa veya yeni bir dosyaysa yükle
-          else if (typeof image === 'string' && image.startsWith('data:image')) {
-            const result = await cloudinary.upload(image, 'products');
-            if (result.success) {
-              uploadedImages.push(result.url);
-            }
-          }
+    // Resimleri Cloudinary'ye yükle
+    if (req.files && req.files.length > 0) {
+      logger.info('Resim yükleme başladı:', { fileCount: req.files.length });
+      
+      const uploadPromises = req.files.map(async (file) => {
+        try {
+          const dataURI = bufferToBase64(file.buffer, file.mimetype);
+          const result = await cloudinary.uploader.upload(dataURI, {
+            folder: 'products',
+            resource_type: 'auto',
+            timeout: 60000,
+          });
+          
+          logger.info('Resim yüklendi:', { url: result.secure_url });
+          return result.secure_url;
+        } catch (uploadError) {
+          logger.error('Cloudinary resim yükleme hatası:', { 
+            error: uploadError.message,
+            errorDetails: uploadError
+          });
+          throw new AppError(`Resim yükleme hatası: ${uploadError.message}`, 500);
         }
-        
-        if (uploadedImages.length > 0) {
-          productData.images = uploadedImages;
-        } else {
-          // Hiç resim yüklenemezse varsayılan resmi kullan
-          productData.images = [cloudinary.getDefaultImageUrl()];
-        }
-      } 
-      // Eğer tek bir resim gönderilmişse
-      else if (images && typeof images === 'string' && images.startsWith('data:image')) {
-        const result = await cloudinary.upload(images, 'products');
-        if (result.success) {
-          productData.images = [result.url];
-        } else {
-          productData.images = [cloudinary.getDefaultImageUrl()];
-        }
+      });
+      
+      try {
+        productData.images = await Promise.all(uploadPromises);
+        logger.info('Tüm resimler yüklendi:', { imageCount: productData.images.length });
+      } catch (promiseError) {
+        logger.error('Resim yükleme promise hatası:', { error: promiseError.message });
+        throw new AppError('Resimler yüklenirken bir hata oluştu', 500);
       }
-      // Resim yoksa varsayılan resmi kullan
-      else {
-        productData.images = [cloudinary.getDefaultImageUrl()];
-      }
-    } catch (uploadError) {
-      logger.error(`Resim yükleme hatası: ${uploadError.message}`);
-      // Hata durumunda varsayılan resmi kullan
-      productData.images = [cloudinary.getDefaultImageUrl()];
+    } else {
+      // Varsayılan resim ekle
+      productData.images = ['https://res.cloudinary.com/dlkrduwav/image/upload/v1716066139/default-product_dljmyw.png'];
+      logger.info('Varsayılan resim eklendi');
     }
 
-    // Ürünü veritabanında oluştur
     const product = await Product.create(productData);
 
-    logger.info(`Yeni ürün oluşturuldu: ${product.name}`);
-    
-    return res.status(201).json({
+    res.status(201).json({
       success: true,
-      data: product,
-      message: 'Ürün başarıyla oluşturuldu'
+      data: product
     });
   } catch (error) {
-    logger.error(`Ürün oluşturma hatası: ${error.message}`);
+    logger.error('Ürün oluşturma hatası:', { error: error.message });
     next(error);
   }
 };
 
-// Ürün güncelle - Resim işleme etkinleştirildi
+// Ürün güncelle
 exports.updateProduct = async (req, res, next) => {
   try {
-    const { name, description, price, category, stock, featured } = req.body;
-    let { images } = req.body;
+    logger.info('Ürün güncelleme başladı:', { productId: req.params.id });
     
-    const product = await Product.findById(req.params.id);
-    
-    if (!product) {
+    // Önce ürünü bul
+    const existingProduct = await Product.findById(req.params.id);
+    if (!existingProduct) {
       throw createError(404, 'Ürün bulunamadı');
     }
     
     // Güncelleme verilerini hazırla
     const updateData = {
-      name: name || product.name,
-      description: description || product.description,
-      price: price ? Number(price) : product.price,
-      category: category || product.category,
-      stock: stock !== undefined ? Number(stock) : product.stock,
-      featured: featured !== undefined ? (featured === 'true' || featured === true) : product.featured
+      name: req.body.name ? req.body.name.trim() : existingProduct.name,
+      description: req.body.description ? req.body.description.trim() : existingProduct.description,
+      price: req.body.price ? parseFloat(req.body.price) : existingProduct.price,
+      category: req.body.category ? req.body.category.trim() : existingProduct.category,
+      stock: req.body.stock ? parseInt(req.body.stock) : existingProduct.stock
     };
     
-    // Resim işleme bölümü
-    try {
-      // Base64 veya resim URL'leri dizisi olarak gönderilmişse
-      if (images && Array.isArray(images) && images.length > 0) {
-        const uploadedImages = [];
-        
-        for (const image of images) {
-          // Eğer zaten bir URL ise ve cloudinary içeriyorsa, doğrudan ekle
-          if (typeof image === 'string' && (image.includes('cloudinary') || image.includes('/uploads/'))) {
-            uploadedImages.push(image);
-          } 
-          // Base64 formatındaysa veya yeni bir dosyaysa yükle
-          else if (typeof image === 'string' && image.startsWith('data:image')) {
-            const result = await cloudinary.upload(image, 'products');
-            if (result.success) {
-              uploadedImages.push(result.url);
-            }
-          }
-        }
-        
-        if (uploadedImages.length > 0) {
-          updateData.images = uploadedImages;
-        } else {
-          // Eğer hiç görsel yüklenemezse, mevcut görselleri koru
-          updateData.images = product.images;
-        }
-      } 
-      // Eğer tek bir resim gönderilmişse
-      else if (images && typeof images === 'string' && images.startsWith('data:image')) {
-        const result = await cloudinary.upload(images, 'products');
-        if (result.success) {
-          updateData.images = [result.url];
-        } else {
-          // Yükleme başarısız olursa mevcut görselleri koru
-          updateData.images = product.images;
-        }
+    // Mevcut resimler varsa işle
+    let imagesToKeep = [];
+    if (req.body.existingImages) {
+      try {
+        imagesToKeep = JSON.parse(req.body.existingImages);
+        logger.info('Korunacak mevcut resimler:', { count: imagesToKeep.length });
+      } catch (error) {
+        logger.error('Mevcut resimleri ayrıştırma hatası:', { error: error.message });
+        imagesToKeep = [];
       }
-      // Resim yoksa mevcut resimleri koru
-      else {
-        updateData.images = product.images;
-      }
-    } catch (uploadError) {
-      logger.error(`Resim yükleme hatası: ${uploadError.message}`);
-      // Hata durumunda mevcut görselleri koru
-      updateData.images = product.images;
     }
+    
+    // Yeni yüklenen resimleri işle
+    if (req.files && req.files.length > 0) {
+      logger.info('Yeni resim yükleme başladı:', { fileCount: req.files.length });
+      
+      const uploadPromises = req.files.map(async (file) => {
+        try {
+          const dataURI = bufferToBase64(file.buffer, file.mimetype);
+          const result = await cloudinary.uploader.upload(dataURI, {
+            folder: 'products',
+            resource_type: 'auto',
+            timeout: 60000,
+          });
+          
+          logger.info('Yeni resim yüklendi:', { url: result.secure_url });
+          return result.secure_url;
+        } catch (uploadError) {
+          logger.error('Cloudinary resim yükleme hatası:', { 
+            error: uploadError.message,
+            errorDetails: uploadError
+          });
+          throw new AppError(`Resim yükleme hatası: ${uploadError.message}`, 500);
+        }
+      });
+      
+      try {
+        const newImages = await Promise.all(uploadPromises);
+        logger.info('Tüm yeni resimler yüklendi:', { imageCount: newImages.length });
+        
+        // Mevcut ve yeni resimleri birleştir
+        updateData.images = [...imagesToKeep, ...newImages];
+      } catch (promiseError) {
+        logger.error('Resim yükleme promise hatası:', { error: promiseError.message });
+        throw new AppError('Resimler yüklenirken bir hata oluştu', 500);
+      }
+    } else {
+      // Sadece mevcut resimler
+      updateData.images = imagesToKeep;
+      
+      // Eğer hiç resim yoksa varsayılan resim ekle
+      if (updateData.images.length === 0) {
+        updateData.images = ['https://res.cloudinary.com/dlkrduwav/image/upload/v1716066139/default-product_dljmyw.png'];
+        logger.info('Varsayılan resim eklendi');
+      }
+    }
+    
+    logger.info('Ürün güncelleniyor:', { 
+      productId: req.params.id,
+      imageCount: updateData.images.length
+    });
     
     // Ürünü güncelle
     const updatedProduct = await Product.findByIdAndUpdate(
@@ -264,15 +227,12 @@ exports.updateProduct = async (req, res, next) => {
       { new: true, runValidators: true }
     );
     
-    logger.info(`Ürün güncellendi: ${updatedProduct.name}`);
-    
     res.status(200).json({
       success: true,
-      data: updatedProduct,
-      message: 'Ürün başarıyla güncellendi'
+      data: updatedProduct
     });
   } catch (error) {
-    logger.error(`Ürün güncelleme hatası: ${error.message}`);
+    logger.error('Ürün güncelleme hatası:', { error: error.message });
     next(error);
   }
 };
@@ -280,38 +240,15 @@ exports.updateProduct = async (req, res, next) => {
 // Ürün sil
 exports.deleteProduct = async (req, res, next) => {
   try {
-    const product = await Product.findById(req.params.id);
-    
+    const product = await Product.findByIdAndDelete(req.params.id);
     if (!product) {
       throw createError(404, 'Ürün bulunamadı');
     }
-    
-    // Ürüne ait resimleri sil
-    try {
-      if (product.images && product.images.length > 0) {
-        for (const imageUrl of product.images) {
-          if (imageUrl && (imageUrl.includes('cloudinary') || imageUrl.includes('/uploads/'))) {
-            const publicId = imageUrl.split('/').pop().split('.')[0];
-            await cloudinary.destroy(publicId);
-          }
-        }
-      }
-    } catch (error) {
-      logger.error(`Resimleri silme hatası: ${error.message}`);
-      // Resim silme hatası olsa bile ürünü silmeye devam et
-    }
-    
-    await Product.findByIdAndDelete(req.params.id);
-    
-    logger.info(`Ürün silindi: ${product.name}`);
-    
     res.status(200).json({
       success: true,
-      data: null,
-      message: 'Ürün başarıyla silindi'
+      data: null
     });
   } catch (error) {
-    logger.error(`Ürün silme hatası: ${error.message}`);
     next(error);
   }
 };
@@ -320,34 +257,92 @@ exports.deleteProduct = async (req, res, next) => {
 exports.getCategories = async (req, res, next) => {
   try {
     const categories = await Product.distinct('category');
+    
+    logger.info('Kategoriler başarıyla getirildi', {
+      success: true,
+      data: categories
+    });
+    
     res.status(200).json({
       success: true,
-      data: categories,
-      message: 'Kategoriler başarıyla getirildi'
+      data: categories
     });
   } catch (error) {
-    logger.error(`Kategorileri getirme hatası: ${error.message}`);
+    logger.error('Kategorileri getirme hatası:', { error: error.message });
     next(error);
   }
 };
 
-// Ürün ara
+// Ürünleri ara
 exports.searchProducts = async (req, res, next) => {
   try {
-    const { query } = req.query;
-    const products = await Product.find({
-      $or: [
-        { name: { $regex: query, $options: 'i' } },
-        { description: { $regex: query, $options: 'i' } }
-      ]
+    const { q, category, minPrice, maxPrice, sort } = req.query;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    
+    // Filtreleme
+    const filter = {};
+    
+    if (q) {
+      filter.$or = [
+        { name: { $regex: q, $options: 'i' } },
+        { description: { $regex: q, $options: 'i' } }
+      ];
+    }
+    
+    if (category && category !== 'Tümü') {
+      filter.category = category;
+    }
+    
+    if (minPrice && !isNaN(minPrice)) {
+      filter.price = { ...filter.price, $gte: parseFloat(minPrice) };
+    }
+    
+    if (maxPrice && !isNaN(maxPrice)) {
+      filter.price = { ...filter.price, $lte: parseFloat(maxPrice) };
+    }
+    
+    // Sıralama
+    const sortOptions = {};
+    if (sort) {
+      const [field, direction] = sort.split(':');
+      sortOptions[field] = direction === 'desc' ? -1 : 1;
+    } else {
+      sortOptions.createdAt = -1;
+    }
+    
+    // Sorgu
+    const [products, total] = await Promise.all([
+      Product.find(filter)
+        .sort(sortOptions)
+        .skip(skip)
+        .limit(limit),
+      Product.countDocuments(filter)
+    ]);
+    
+    const totalPages = Math.ceil(total / limit);
+    
+    logger.info('Ürün arama sonuçları', {
+      query: q,
+      total,
+      page,
+      limit
     });
+    
     res.status(200).json({
       success: true,
       data: products,
-      message: 'Arama sonuçları başarıyla getirildi'
+      pagination: {
+        total,
+        page,
+        pages: totalPages,
+        limit
+      },
+      count: products.length
     });
   } catch (error) {
-    logger.error(`Ürün arama hatası: ${error.message}`);
+    logger.error('Ürün arama hatası:', { error: error.message });
     next(error);
   }
 };
@@ -356,63 +351,39 @@ exports.searchProducts = async (req, res, next) => {
 exports.getProductsByCategory = async (req, res, next) => {
   try {
     const { category } = req.params;
-    const products = await Product.find({ category });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    
+    const [products, total] = await Promise.all([
+      Product.find({ category: category })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Product.countDocuments({ category: category })
+    ]);
+    
+    const totalPages = Math.ceil(total / limit);
+    
+    logger.info('Kategoriye göre ürünler getirildi', {
+      category,
+      total,
+      page
+    });
+    
     res.status(200).json({
       success: true,
       data: products,
-      message: `${category} kategorisindeki ürünler başarıyla getirildi`
+      pagination: {
+        total,
+        page,
+        pages: totalPages,
+        limit
+      },
+      count: products.length
     });
   } catch (error) {
-    logger.error(`Kategori ürünlerini getirme hatası: ${error.message}`);
-    next(error);
-  }
-};
-
-// Öne çıkan ürünleri getir
-exports.getFeaturedProducts = async (req, res, next) => {
-  try {
-    const limit = req.query.limit ? Number(req.query.limit) : 5;
-    
-    const products = await Product.find({ featured: true })
-      .sort({ createdAt: -1 })
-      .limit(limit);
-    
-    res.status(200).json({
-      success: true,
-      data: products,
-      message: 'Öne çıkan ürünler başarıyla getirildi'
-    });
-  } catch (error) {
-    logger.error(`Öne çıkan ürünleri getirme hatası: ${error.message}`);
-    next(error);
-  }
-};
-
-// İlgili ürünleri getir
-exports.getRelatedProducts = async (req, res, next) => {
-  try {
-    const product = await Product.findById(req.params.id);
-    
-    if (!product) {
-      throw createError(404, 'Ürün bulunamadı');
-    }
-    
-    const limit = req.query.limit ? Number(req.query.limit) : 4;
-    
-    const relatedProducts = await Product.find({
-      _id: { $ne: product._id },
-      category: product.category
-    })
-      .sort({ createdAt: -1 })
-      .limit(limit);
-    
-    res.status(200).json({
-      success: true,
-      data: relatedProducts,
-      message: 'İlgili ürünler başarıyla getirildi'
-    });
-  } catch (error) {
-    logger.error(`İlgili ürünleri getirme hatası: ${error.message}`);
+    logger.error('Kategoriye göre ürün getirme hatası:', { error: error.message });
     next(error);
   }
 };
