@@ -1,22 +1,25 @@
 const express = require('express');
 const router = express.Router();
-const { protect, authorize } = require('../middlewares/auth');
-const orderController = require('../controllers/order.controller');
 
-// Kullanıcı rotaları - Kullanıcının kendi siparişleri
-router.use(protect);
-router.get('/my-orders', orderController.getMyOrders);
-router.get('/my-orders/:id', orderController.getMyOrder);
-router.post('/', orderController.createOrder);
-router.post('/verify-payment', orderController.verifyPayment);
-router.put('/cancel/:id', orderController.cancelOrder);
+// Örnek rota tanımları
+router.get('/', (req, res) => {
+  res.status(200).json({ message: 'Siparişler listelendi' });
+});
 
-// Admin rotaları
-router.use(authorize('admin'));
-router.get('/', orderController.getAllOrders);
-router.get('/:id', orderController.getOrder);
-router.put('/:id', orderController.updateOrder);
-router.put('/:id/status', orderController.updateOrderStatus);
-router.delete('/:id', orderController.deleteOrder);
+router.get('/:id', (req, res) => {
+  res.status(200).json({ message: `Sipariş detayı: ${req.params.id}` });
+});
+
+router.post('/', (req, res) => {
+  res.status(201).json({ message: 'Yeni sipariş oluşturuldu' });
+});
+
+router.put('/:id', (req, res) => {
+  res.status(200).json({ message: `Sipariş güncellendi: ${req.params.id}` });
+});
+
+router.delete('/:id', (req, res) => {
+  res.status(200).json({ message: `Sipariş silindi: ${req.params.id}` });
+});
 
 module.exports = router;
