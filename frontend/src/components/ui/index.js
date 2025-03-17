@@ -1,3 +1,13 @@
-export { default as ProductCard } from './ProductCard'
-export { default as CategoryCard } from './CategoryCard'
-export { default as Slider } from './Slider'
+import ThemeToggle from './ThemeToggle'
+import LanguageSelector from './LanguageSelector'
+import PageTransition from './PageTransition'
+import BackToTop from './BackToTop'
+import Breadcrumb from './Breadcrumb'
+
+export {
+  ThemeToggle,
+  LanguageSelector,
+  PageTransition,
+  BackToTop,
+  Breadcrumb
+}
