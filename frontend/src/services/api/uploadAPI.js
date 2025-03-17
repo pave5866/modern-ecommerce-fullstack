@@ -1,100 +1,117 @@
-import { api } from '../api';
-import logger from '../../utils/logger';
+import api from '../api';
+import logger from '../logger';
 
-// Resim yükleme için özel yardımcı fonksiyonlar
-export const uploadAPI = {
-  // Tek resim yükleme
+/**
+ * Upload API servisi - Resim yükleme işlemleri için
+ */
+const uploadAPI = {
+  /**
+   * Tekli resim yükleme
+   * @param {File} file - Yüklenecek resim dosyası
+   * @returns {Promise<Object>} - Yüklenen resmin bilgileri
+   */
   uploadImage: async (file) => {
     try {
-      logger.info('Tek resim yükleme başlatılıyor', { fileName: file.name, size: file.size });
+      logger.info(`Resim yükleniyor: ${file.name}`);
       
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('image', file);
       
-      const response = await api.post('/uploads/image', formData, {
+      const response = await api.post('/api/uploads/image', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
       
-      logger.info('Resim yükleme başarılı', { url: response.data.data.url });
+      logger.info('Resim başarıyla yüklendi');
       return response.data;
     } catch (error) {
-      logger.error('Resim yükleme hatası', { error: error.message, file: file.name });
+      logger.error('Resim yükleme hatası:', error);
       throw error;
     }
   },
-  
-  // Çoklu resim yükleme
+
+  /**
+   * Çoklu resim yükleme
+   * @param {Array<File>} files - Yüklenecek resim dosyaları
+   * @returns {Promise<Object>} - Yüklenen resimlerin bilgileri
+   */
   uploadImages: async (files) => {
     try {
-      logger.info('Çoklu resim yükleme başlatılıyor', { fileCount: files.length });
+      logger.info(`${files.length} adet resim yükleniyor`);
       
       const formData = new FormData();
-      files.forEach((file, index) => {
-        formData.append('files', file);
+      files.forEach(file => {
+        formData.append('images', file);
       });
       
-      const response = await api.post('/uploads/images', formData, {
+      const response = await api.post('/api/uploads/images', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
       
-      logger.info('Çoklu resim yükleme başarılı', { urlCount: response.data.data.urls.length });
+      logger.info(`${response.data.images.length} adet resim başarıyla yüklendi`);
       return response.data;
     } catch (error) {
-      logger.error('Çoklu resim yükleme hatası', { error: error.message, fileCount: files.length });
+      logger.error('Çoklu resim yükleme hatası:', error);
       throw error;
     }
   },
-  
-  // Base64 formatında resim yükleme (alternatif yöntem)
-  uploadBase64Image: async (base64Data, fileName = 'image.jpg') => {
+
+  /**
+   * Base64 formatında resim yükleme
+   * @param {string} base64Image - Base64 formatında resim verisi
+   * @returns {Promise<Object>} - Yüklenen resmin bilgileri
+   */
+  uploadBase64Image: async (base64Image) => {
     try {
-      logger.info('Base64 resim yükleme başlatılıyor', { fileName });
+      logger.info('Base64 formatında resim yükleniyor');
       
-      const response = await api.post('/uploads/base64', {
-        image: base64Data,
-        name: fileName
-      });
+      const response = await api.post('/api/uploads/base64', { image: base64Image });
       
-      logger.info('Base64 resim yükleme başarılı', { url: response.data.data.url });
+      logger.info('Base64 resim başarıyla yüklendi');
       return response.data;
     } catch (error) {
-      logger.error('Base64 resim yükleme hatası', { error: error.message });
+      logger.error('Base64 resim yükleme hatası:', error);
       throw error;
     }
   },
-  
-  // URL'den resim yükleme (alternatif yöntem)
+
+  /**
+   * URL'den resim yükleme
+   * @param {string} imageUrl - Resim URL'si
+   * @returns {Promise<Object>} - Yüklenen resmin bilgileri
+   */
   uploadImageFromUrl: async (imageUrl) => {
     try {
-      logger.info('URL\'den resim yükleme başlatılıyor', { imageUrl });
+      logger.info(`URL'den resim yükleniyor: ${imageUrl}`);
       
-      const response = await api.post('/uploads/url', {
-        url: imageUrl
-      });
+      const response = await api.post('/api/uploads/url', { url: imageUrl });
       
-      logger.info('URL\'den resim yükleme başarılı', { url: response.data.data.url });
+      logger.info('URL resmi başarıyla yüklendi');
       return response.data;
     } catch (error) {
-      logger.error('URL\'den resim yükleme hatası', { error: error.message, url: imageUrl });
+      logger.error('URL resim yükleme hatası:', error);
       throw error;
     }
   },
-  
-  // Resim silme
+
+  /**
+   * Resim silme
+   * @param {string} publicId - Silinecek resmin Cloudinary public ID'si
+   * @returns {Promise<Object>} - Silme işlemi sonucu
+   */
   deleteImage: async (publicId) => {
     try {
-      logger.info('Resim silme işlemi başlatılıyor', { publicId });
+      logger.info(`Resim siliniyor: ${publicId}`);
       
-      const response = await api.delete(`/uploads/image/${publicId}`);
+      const response = await api.delete(`/api/uploads/image/${publicId}`);
       
-      logger.info('Resim silme başarılı', { publicId });
+      logger.info('Resim başarıyla silindi');
       return response.data;
     } catch (error) {
-      logger.error('Resim silme hatası', { error: error.message, publicId });
+      logger.error('Resim silme hatası:', error);
       throw error;
     }
   }
