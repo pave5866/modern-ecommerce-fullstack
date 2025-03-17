@@ -1,95 +1,96 @@
-const mongoose = require('mongoose')
+const mongoose = require('mongoose');
+const slugify = require('slugify');
 
-const categorySchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: [true, 'Kategori adı zorunludur'],
-    unique: true,
-    trim: true
-  },
-  slug: {
-    type: String,
-    unique: true,
-    lowercase: true
-  },
-  description: String,
-  image: String,
-  parent: {
-    type: mongoose.Schema.ObjectId,
-    ref: 'Category',
-    default: null
-  },
-  ancestors: [{
-    _id: {
-      type: mongoose.Schema.ObjectId,
-      ref: 'Category',
-      required: true
-    },
+const categorySchema = new mongoose.Schema(
+  {
     name: {
       type: String,
-      required: true
+      required: [true, 'Kategori adı gereklidir'],
+      trim: true,
+      maxlength: [32, 'Kategori adı en fazla 32 karakter olabilir']
     },
     slug: {
       type: String,
-      required: true
+      unique: true,
+      lowercase: true,
+      index: true
+    },
+    description: {
+      type: String,
+      maxlength: [2000, 'Açıklama en fazla 2000 karakter olabilir']
+    },
+    parent: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Category',
+      default: null
+    },
+    ancestors: [{
+      _id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Category',
+        index: true
+      },
+      name: String,
+      slug: String
+    }],
+    imageUrl: {
+      type: String,
+      default: ''
+    },
+    order: {
+      type: Number,
+      default: 0
+    },
+    isActive: {
+      type: Boolean,
+      default: true
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false
     }
-  }],
-  order: {
-    type: Number,
-    default: 0
   },
-  isActive: {
-    type: Boolean,
-    default: true
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
-}, {
-  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
-})
+);
 
-// Alt kategorileri getir
+// Alt kategorileri virtual olarak getir
 categorySchema.virtual('children', {
   ref: 'Category',
   localField: '_id',
   foreignField: 'parent'
-})
+});
 
 // Slug oluştur
-categorySchema.pre('save', function(next) {
-  if (!this.isModified('name')) return next()
-  
-  this.slug = this.name
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-  
-  next()
-})
-
-// Atalarını güncelle
 categorySchema.pre('save', async function(next) {
-  if (!this.isModified('parent')) return next()
-  
-  if (!this.parent) {
-    this.ancestors = []
-    return next()
+  if (!this.isModified('name') && this.slug) {
+    return next();
   }
-
-  try {
-    const parent = await this.constructor.findById(this.parent)
-    if (!parent) return next()
-
+  
+  this.slug = slugify(this.name, {
+    lower: true,
+    strict: true,
+    locale: 'tr'
+  });
+  
+  const slugRegEx = new RegExp(`^(${this.slug})((-\\d*$)?)$`, 'i');
+  const categoryWithSlug = await this.constructor.find({ slug: slugRegEx });
+  
+  if (categoryWithSlug.length > 0) {
+    this.slug = `${this.slug}-${categoryWithSlug.length + 1}`;
+  }
+  
+  // Eğer üst kategori varsa, ancestors dizisini oluştur
+  if (this.parent) {
+    const parent = await this.constructor.findById(this.parent);
+    
+    if (!parent) {
+      return next(new Error('Belirtilen üst kategori bulunamadı'));
+    }
+    
     this.ancestors = [
       ...parent.ancestors,
       {
@@ -97,47 +98,26 @@ categorySchema.pre('save', async function(next) {
         name: parent.name,
         slug: parent.slug
       }
-    ]
-    next()
-  } catch (error) {
-    next(error)
+    ];
+  } else {
+    this.ancestors = [];
   }
-})
+  
+  next();
+});
 
-// Alt kategorileri getir
-categorySchema.methods.getChildren = async function() {
-  return await this.constructor.find({ parent: this._id })
-}
-
-// Tüm alt kategorileri getir (recursive)
-categorySchema.methods.getAllChildren = async function() {
-  const children = await this.getChildren()
-  let allChildren = [...children]
-
-  for (let child of children) {
-    const grandChildren = await child.getAllChildren()
-    allChildren = [...allChildren, ...grandChildren]
+// Kategori silindiğinde alt kategoriler de kaldırılsın
+categorySchema.pre('remove', async function(next) {
+  // Alt kategorileri bul ve sil
+  const childCategories = await this.constructor.find({ parent: this._id });
+  
+  for (const child of childCategories) {
+    await child.remove();
   }
+  
+  next();
+});
 
-  return allChildren
-}
+const Category = mongoose.model('Category', categorySchema);
 
-// Kategoriyi taşı
-categorySchema.methods.moveTo = async function(newParentId) {
-  this.parent = newParentId
-  return await this.save()
-}
-
-// Sırasını güncelle
-categorySchema.methods.updateOrder = async function(newOrder) {
-  this.order = newOrder
-  return await this.save()
-}
-
-// Durumunu güncelle
-categorySchema.methods.updateStatus = async function(isActive) {
-  this.isActive = isActive
-  return await this.save()
-}
-
-module.exports = mongoose.model('Category', categorySchema) 
+module.exports = Category;
