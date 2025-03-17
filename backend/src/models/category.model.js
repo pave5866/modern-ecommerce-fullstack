@@ -1,6 +1,19 @@
 const mongoose = require('mongoose');
-const slugify = require('slugify');
+// Slugify yerine kendi slug fonksiyonumuzu kullanacağız
 const Schema = mongoose.Schema;
+
+// Slugify benzeri basit fonksiyon
+const createSlug = (text) => {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')       // Boşlukları tire ile değiştir
+    .replace(/[^\w\-]+/g, '')   // Alfanumerik olmayan karakterleri kaldır
+    .replace(/\-\-+/g, '-')     // Birden fazla tireyi tek tire yap
+    .replace(/^-+/, '')         // Baştaki tireleri kaldır
+    .replace(/-+$/, '');        // Sondaki tireleri kaldır
+};
 
 // Kategori Şeması
 const categorySchema = new Schema(
@@ -86,11 +99,7 @@ categorySchema.pre('save', async function(next) {
   }
   
   // Slug oluştur
-  this.slug = slugify(this.name, {
-    lower: true,
-    strict: true,
-    locale: 'tr'
-  });
+  this.slug = createSlug(this.name);
   
   // Aynı slug'a sahip başka bir kategori var mı kontrol et
   const slugRegEx = new RegExp(`^(${this.slug})((-[0-9]*$)?)$`, 'i');
