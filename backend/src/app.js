@@ -1,117 +1,132 @@
-const express = require('express');
-const cors = require('cors');
 const path = require('path');
+const express = require('express');
+const morgan = require('morgan');
+const cors = require('cors');
+const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
-const { startTimer, captureResponseBody, logOnFinish, logError } = require('./middlewares/logger');
-const errorHandler = require('./middlewares/error');
+const rateLimit = require('express-rate-limit');
+const fs = require('fs');
 const logger = require('./utils/logger');
-require('dotenv').config();
 
-// Modelleri önceden yükle (uygulama çalıştığında tüm modellerin hazır olması için)
-require('./models/product.model');
-require('./models/review.model'); // Review modelini ekledik
-
-// Express uygulaması oluştur
+// Uygulama başlatma
 const app = express();
 
-// CORS ayarları
-app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'https://frabjous-daifuku-431360.netlify.app',
-    'https://modern-fullstack-eticaret.netlify.app'
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+// CORS ayarları - Whitelist ayarı
+const whitelist = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://modern-ecommerce.netlify.app',
+  'https://modern-full-stack-e-ticaret.netlify.app'
+];
+
+// CORS yapılandırma
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Frontend'ten gelen isteklerde origin boş olabiliyor (null), bu durumu handle edelim
+    if (!origin || whitelist.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      // Whitelist dışındaki orgin'leri loglayalım (debugging için)
+      logger.warn(`CORS: Bloke edilen origin: ${origin}`);
+      callback(null, false);
+    }
+  },
+  credentials: true, // Cookie ve JWT doğrulaması için gerekli
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  maxAge: 86400 // CORS önbellek süresi: 24 saat
+};
+
+app.use(cors(corsOptions));
+
+// Helmet güvenlik başlıkları
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }, // Resim yükleme için gerekli
+  contentSecurityPolicy: false // Geliştirme aşamasında devre dışı bırakıldı
 }));
 
-// JSON parser ve diğer middleware'ler
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Rate limiting (DDoS koruması)
+const limiter = rateLimit({
+  max: 100, // Her IP için izin verilen istek sayısı
+  windowMs: 15 * 60 * 1000, // 15 dakikalık pencere
+  message: 'Bu IP adresinden çok fazla istek yapıldı, lütfen 15 dakika sonra tekrar deneyin.',
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// JSON body parser
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
-// Front-end static dosyaları için (eğer ihtiyaç olursa)
-app.use(express.static(path.join(__dirname, '../public')));
+// Morgan logger
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev'));
+} else {
+  app.use(morgan('combined'));
+}
 
-// Middlewares for logging request and response data
-app.use(startTimer);
+// Statik dosyalar
+const publicDir = path.join(__dirname, '../public');
+const uploadsDir = path.join(publicDir, 'uploads');
 
-// Log tüm istekleri, performans analizi için
+// Public ve uploads klasörlerini kontrol et ve yoksa oluştur
+if (!fs.existsSync(publicDir)) {
+  fs.mkdirSync(publicDir, { recursive: true });
+  logger.info('Public klasörü oluşturuldu');
+}
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  logger.info('Uploads klasörü oluşturuldu');
+}
+
+app.use(express.static(publicDir));
+
+// API rotaları
+app.use('/api/auth', require('./routes/auth.routes'));
+app.use('/api/users', require('./routes/user.routes'));
+app.use('/api/products', require('./routes/product.routes'));
+app.use('/api/categories', require('./routes/category.routes'));
+app.use('/api/orders', require('./routes/order.routes'));
+app.use('/api/cart', require('./routes/cart.routes'));
+app.use('/api/reviews', require('./routes/review.routes'));
+app.use('/api/dashboard', require('./routes/dashboard.routes'));
+app.use('/api/logs', require('./routes/log.routes'));
+app.use('/api/uploads', require('./routes/upload.routes'));
+
+// Ana endpoint
+app.get('/', (req, res) => {
+  res.send('Modern E-Ticaret API - Hoşgeldiniz');
+});
+
+// 404 handler
 app.use((req, res, next) => {
-  // URL ve method bilgisini logla
   logger.info(`${req.method} ${req.originalUrl}`);
-  next();
-});
-
-// API Routes
-const authRoutes = require('./routes/auth.routes');
-const userRoutes = require('./routes/user.routes');
-const productRoutes = require('./routes/product.routes');
-const orderRoutes = require('./routes/order.routes');
-const addressRoutes = require('./routes/address.routes');
-const settingsRoutes = require('./routes/settings.routes');
-const adminRoutes = require('./routes/admin.routes');
-const reviewRoutes = require('./routes/review.routes'); // Review routes eklendi
-const logRoutes = require('./routes/log.routes'); // Log routes eklendi
-const dashboardRoutes = require('./routes/dashboard.routes'); // Dashboard routes eklendi
-
-// API Yolları
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/addresses', addressRoutes);
-app.use('/api/settings', settingsRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/reviews', reviewRoutes); // Review routes kullanıldı
-app.use('/api/logs', logRoutes); // Log routes kullanıldı
-app.use('/api/dashboard', dashboardRoutes); // Dashboard routes kullanıldı
-
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'API sağlık kontrolü başarılı',
-    timestamp: new Date().toISOString(),
-    uptime: Math.round(process.uptime())
-  });
-});
-
-// Global hata yakalama
-app.use((err, req, res, next) => {
-  logger.error('Global hata:', { 
-    message: err.message,
-    stack: err.stack
-  });
-  
-  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
-    return res.status(400).json({
-      success: false,
-      message: 'Geçersiz JSON formatı'
-    });
-  }
-
-  next(err);
-});
-
-// 404 Route Handler - Tüm route'lar kontrol edildikten sonra çağrılır
-app.use((req, res, next) => {
   res.status(404).json({
     success: false,
-    message: `Üzgünüz, istenen kaynak (${req.originalUrl}) bulunamadı.`
+    message: `API rotası bulunamadı: ${req.originalUrl}`
   });
 });
 
-// Response capture - bu middleware isteğin işlenmesinden sonra çağrılır
-// ve yanıt gövdesini yakalar
-app.use(captureResponseBody);
+// Hata yakalama middleware
+app.use((err, req, res, next) => {
+  // Hata logları
+  if (err.statusCode >= 500) {
+    logger.error(err.message, { stack: err.stack });
+  } else {
+    logger.error(err.message, { statusCode: err.statusCode || 500 });
+  }
 
-// Log the request/response info after the request has been completed
-app.use(logOnFinish);
-
-// Error handling middleware
-app.use(logError);
-app.use(errorHandler);
+  // Hata türüne göre yanıt oluştur
+  res.status(err.statusCode || 500).json({
+    success: false,
+    status: err.status || 'error',
+    message: err.message || 'Bir şeyler yanlış gitti!',
+    ...(process.env.NODE_ENV === 'development' && { 
+      stack: err.stack,
+      isOperational: err.isOperational || false
+    })
+  });
+});
 
 module.exports = app;
