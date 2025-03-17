@@ -1,73 +1,47 @@
-const winston = require('winston');
-const { format, transports } = winston;
+const pino = require('pino');
+const path = require('path');
+const fs = require('fs');
 
-// Winston formatları
-const logFormat = format.combine(
-  format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-  format.errors({ stack: true }),
-  format.splat(),
-  format.json()
-);
-
-// Console formatı (renkli ve okunabilir)
-const consoleFormat = format.combine(
-  format.colorize(),
-  format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-  format.printf(({ timestamp, level, message, ...meta }) => {
-    return `${timestamp} [${level}]: ${message} ${
-      Object.keys(meta).length ? JSON.stringify(meta, null, 2) : ''
-    }`;
-  })
-);
-
-// Logger tanımlaması 
-const logger = winston.createLogger({
-  level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
-  format: logFormat,
-  defaultMeta: { service: 'backend-api' },
-  transports: [
-    // Console'a log yazma
-    new transports.Console({
-      format: consoleFormat
-    }),
-    // Dosyaya hata logları yazma
-    new transports.File({ 
-      filename: 'logs/error.log', 
-      level: 'error',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-    }),
-    // Dosyaya tüm logları yazma
-    new transports.File({ 
-      filename: 'logs/combined.log',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-    })
-  ],
-  // Beklenmeyen hataları yakalama
-  exceptionHandlers: [
-    new transports.File({ filename: 'logs/exceptions.log' }),
-    new transports.Console({
-      format: consoleFormat
-    })
-  ],
-  // Yakalanmamış promise red nedenlerini yakalama
-  rejectionHandlers: [
-    new transports.File({ filename: 'logs/rejections.log' }),
-    new transports.Console({
-      format: consoleFormat
-    })
-  ]
-});
-
-// Geliştirme ortamında console transport'unu daha okunabilir yap
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new transports.Console({
-    format: format.combine(
-      format.colorize(),
-      format.simple()
-    )
-  }));
+// Log dizinini oluştur (yoksa)
+const logDir = path.join(__dirname, '../../logs');
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir, { recursive: true });
 }
+
+// Log yapılandırması
+const logger = pino({
+  level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+  transport: {
+    targets: [
+      // Formatlı konsol çıktısı
+      {
+        target: 'pino-pretty',
+        level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+        options: {
+          colorize: true,
+          translateTime: 'yyyy-mm-dd HH:MM:ss',
+          ignore: 'pid,hostname',
+        },
+      },
+      // Dosyaya log yazdırma
+      {
+        target: 'pino/file',
+        level: 'info',
+        options: { destination: path.join(logDir, 'app.log') },
+      },
+      // Hata logları ayrı dosyaya
+      {
+        target: 'pino/file',
+        level: 'error',
+        options: { destination: path.join(logDir, 'error.log') },
+      },
+    ],
+  },
+  
+  // Standart log metadatası
+  base: {
+    env: process.env.NODE_ENV,
+  },
+});
 
 module.exports = logger;
