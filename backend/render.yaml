@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: modern-ecommerce-backend
+    runtime: node
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && node src/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
