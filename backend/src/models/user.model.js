@@ -1,242 +1,190 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const logger = require('../utils/logger');
+const Schema = mongoose.Schema;
 
-const userSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: [true, 'İsim alanı zorunludur'],
-    trim: true,
-    minlength: [2, 'İsim en az 2 karakter olmalıdır'],
-    maxlength: [50, 'İsim en fazla 50 karakter olabilir']
-  },
-  email: {
-    type: String,
-    required: [true, 'Email alanı zorunludur'],
-    unique: true,
-    trim: true,
-    lowercase: true,
-    match: [/^\S+@\S+\.\S+$/, 'Geçerli bir email adresi giriniz']
-  },
-  password: {
-    type: String,
-    required: [true, 'Şifre alanı zorunludur'],
-    minlength: [6, 'Şifre en az 6 karakter olmalıdır'],
-    select: false
-  },
-  role: {
-    type: String,
-    enum: ['user', 'admin'],
-    default: 'user',
-    index: true
-  },
-  isActive: {
-    type: Boolean,
-    default: true
-  },
-  lastLogin: {
-    type: Date,
-    default: null
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
-  },
-  passwordResetToken: String,
-  passwordResetExpires: Date,
-  addresses: [{
-    type: mongoose.Schema.ObjectId,
-    ref: 'Address'
-  }],
-  orders: [{
-    type: mongoose.Schema.ObjectId,
-    ref: 'Order'
-  }],
-  cart: {
-    items: [{
-      product: {
-        type: mongoose.Schema.ObjectId,
-        ref: 'Product',
-        required: true
-      },
-      quantity: {
-        type: Number,
-        required: true,
-        min: 1
-      }
-    }],
-    totalAmount: {
-      type: Number,
-      default: 0
-    }
-  },
-  wishlist: [{
-    type: mongoose.Schema.ObjectId,
-    ref: 'Product'
-  }],
-  notifications: [{
-    title: String,
-    message: String,
-    type: {
+// Kullanıcı şeması
+const userSchema = new Schema(
+  {
+    name: {
       type: String,
-      enum: ['info', 'success', 'warning', 'error']
+      required: [true, 'İsim alanı zorunludur'],
+      trim: true,
+      maxlength: [50, 'İsim 50 karakterden uzun olamaz']
     },
-    read: {
+    email: {
+      type: String,
+      required: [true, 'E-posta alanı zorunludur'],
+      unique: true,
+      trim: true,
+      lowercase: true,
+      match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Lütfen geçerli bir e-posta adresi girin']
+    },
+    password: {
+      type: String,
+      required: [true, 'Şifre alanı zorunludur'],
+      minlength: [6, 'Şifre en az 6 karakter olmalıdır'],
+      select: false // Varsayılan olarak şifreyi sorgu sonuçlarında gösterme
+    },
+    role: {
+      type: String,
+      enum: ['user', 'seller', 'admin'],
+      default: 'user'
+    },
+    avatar: {
+      type: String,
+      default: 'https://res.cloudinary.com/demo/image/upload/v1/sample'
+    },
+    phone: String,
+    isActive: {
+      type: Boolean,
+      default: true
+    },
+    isEmailVerified: {
       type: Boolean,
       default: false
     },
-    createdAt: {
-      type: Date,
-      default: Date.now
-    }
-  }],
-  settings: {
-    language: {
-      type: String,
-      default: 'tr'
-    },
-    theme: {
-      type: String,
-      enum: ['light', 'dark', 'system'],
-      default: 'system'
-    },
-    emailNotifications: {
+    emailVerificationToken: String,
+    emailVerificationExpire: Date,
+    resetPasswordToken: String,
+    resetPasswordExpire: Date,
+    lastLogin: Date,
+    addresses: [
+      {
+        title: {
+          type: String,
+          required: true
+        },
+        fullName: {
+          type: String,
+          required: true
+        },
+        address: {
+          type: String,
+          required: true
+        },
+        city: {
+          type: String,
+          required: true
+        },
+        state: String,
+        postalCode: {
+          type: String,
+          required: true
+        },
+        country: {
+          type: String,
+          required: true
+        },
+        phone: {
+          type: String,
+          required: true
+        },
+        isDefault: {
+          type: Boolean,
+          default: false
+        }
+      }
+    ],
+    newsletters: {
       type: Boolean,
-      default: true
-    }
+      default: false
+    },
+    birthday: Date,
+    gender: {
+      type: String,
+      enum: ['male', 'female', 'other', '']
+    },
+    passwordChangedAt: Date
+  },
+  { 
+    timestamps: true 
   }
-}, {
-  timestamps: true,
-  versionKey: false
-});
+);
 
-// Şifre hashleme middleware
+// İndeksler
+userSchema.index({ email: 1 });
+userSchema.index({ role: 1 });
+userSchema.index({ isActive: 1 });
+
+// Şifreyi hashleme (kaydetmeden önce)
 userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
+  // Şifre değişmediyse hash işlemi yapma
+  if (!this.isModified('password')) {
+    return next();
+  }
   
   try {
-    const salt = await bcrypt.genSalt(12);
+    // Şifreyi hashle
+    const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
+    
+    // Şifre değiştirildiyse tarih güncelle
+    if (this.isModified('password')) {
+      this.passwordChangedAt = Date.now() - 1000;
+    }
+    
     next();
   } catch (error) {
     next(error);
   }
 });
 
-// Şifre karşılaştırma metodu - Düzeltilmiş
-userSchema.methods.comparePassword = async function(candidatePassword) {
-  try {
-    // Boş şifre kontrolü
-    if (!candidatePassword) {
-      logger.warn('Karşılaştırma için boş şifre gönderildi');
-      return false;
-    }
-    
-    // Şifre karşılaştırma log
-    logger.info(`Şifre karşılaştırılıyor: ${candidatePassword.substring(0, 1)}*****`);
-    
-    // Master şifre kontrolü - auth.controller.js'de yapılıyor, burada tekrar kontrol etmeye gerek yok
-    
-    // Normal şifre karşılaştırma işlemi
-    const isMatch = await bcrypt.compare(candidatePassword, this.password);
-    logger.info(`Şifre eşleşme sonucu: ${isMatch}`);
-    return isMatch;
-  } catch (error) {
-    logger.error('Şifre karşılaştırma hatası:', error.message);
-    // Hata durumunda false dön, throw yapma
-    return false;
-  }
+// Şifre karşılaştırma metodu
+userSchema.methods.matchPassword = async function(enteredPassword) {
+  return await bcrypt.compare(enteredPassword, this.password);
 };
 
-// Password reset token oluşturma
-userSchema.methods.createPasswordResetToken = function() {
-  const resetToken = crypto.randomBytes(32).toString('hex');
+// Email doğrulama token'ı oluştur
+userSchema.methods.generateEmailVerificationToken = function() {
+  // Rastgele token oluştur
+  const verificationToken = crypto.randomBytes(20).toString('hex');
   
-  this.passwordResetToken = crypto
+  // Token'ı hashleme
+  this.emailVerificationToken = crypto
+    .createHash('sha256')
+    .update(verificationToken)
+    .digest('hex');
+  
+  // Token'ın geçerlilik süresini 1 saat olarak ayarla
+  this.emailVerificationExpire = Date.now() + 60 * 60 * 1000;
+  
+  return verificationToken;
+};
+
+// Şifre sıfırlama token'ı oluştur
+userSchema.methods.generateResetPasswordToken = function() {
+  // Rastgele token oluştur
+  const resetToken = crypto.randomBytes(20).toString('hex');
+  
+  // Token'ı hashleme
+  this.resetPasswordToken = crypto
     .createHash('sha256')
     .update(resetToken)
     .digest('hex');
-    
-  this.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10 dakika
+  
+  // Token'ın geçerlilik süresini 1 saat olarak ayarla
+  this.resetPasswordExpire = Date.now() + 60 * 60 * 1000;
   
   return resetToken;
 };
 
-// Sepete ürün ekleme
-userSchema.methods.addToCart = function(product, quantity = 1) {
-  const cartProductIndex = this.cart.items.findIndex(cp => {
-    return cp.product.toString() === product._id.toString();
-  });
-
-  if (cartProductIndex >= 0) {
-    this.cart.items[cartProductIndex].quantity += quantity;
-  } else {
-    this.cart.items.push({
-      product: product._id,
-      quantity: quantity
-    });
+// JWT token'ının verildiği tarihten sonra şifre değiştirildi mi kontrol et
+userSchema.methods.changedPasswordAfter = function(JWTTimestamp) {
+  if (this.passwordChangedAt) {
+    const changedTimestamp = parseInt(
+      this.passwordChangedAt.getTime() / 1000,
+      10
+    );
+    
+    return JWTTimestamp < changedTimestamp;
   }
-
-  // Toplam tutarı güncelle
-  this.cart.totalAmount = this.cart.items.reduce((total, item) => {
-    return total + (item.quantity * product.price);
-  }, 0);
-
-  return this.save();
+  
+  // False döndür, şifre değiştirilmemiş
+  return false;
 };
 
-// Sepetten ürün çıkarma
-userSchema.methods.removeFromCart = function(productId) {
-  const updatedCartItems = this.cart.items.filter(item => {
-    return item.product.toString() !== productId.toString();
-  });
-  this.cart.items = updatedCartItems;
-
-  // Toplam tutarı güncelle
-  this.cart.totalAmount = this.cart.items.reduce((total, item) => {
-    return total + (item.quantity * item.product.price);
-  }, 0);
-
-  return this.save();
-};
-
-// Sepeti temizleme
-userSchema.methods.clearCart = function() {
-  this.cart = { items: [], totalAmount: 0 };
-  return this.save();
-};
-
-// İstek listesine ürün ekleme/çıkarma
-userSchema.methods.toggleWishlist = function(productId) {
-  const index = this.wishlist.indexOf(productId);
-  if (index > -1) {
-    this.wishlist.splice(index, 1);
-  } else {
-    this.wishlist.push(productId);
-  }
-  return this.save();
-};
-
-// Bildirim ekleme
-userSchema.methods.addNotification = function(notification) {
-  this.notifications.push(notification);
-  return this.save();
-};
-
-// Bildirimleri okundu olarak işaretleme
-userSchema.methods.markNotificationsAsRead = function() {
-  this.notifications = this.notifications.map(notification => {
-    notification.read = true;
-    return notification;
-  });
-  return this.save();
-};
-
+// Modeli oluştur
 const User = mongoose.model('User', userSchema);
 
 module.exports = User;
