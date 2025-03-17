@@ -303,11 +303,76 @@ export const del = async (url) => {
   }
 };
 
+// API servisleri
+export const productAPI = {
+  getAll: (params) => get('/products', params),
+  getById: (id) => get(`/products/${id}`),
+  getCategories: () => get('/products/categories'),
+  create: (data) => post('/products', data),
+  update: (id, data) => put(`/products/${id}`, data),
+  delete: (id) => del(`/products/${id}`),
+  search: (params) => get('/products/search', params)
+};
+
+export const userAPI = {
+  getAll: () => get('/users'),
+  getById: (id) => get(`/users/${id}`),
+  create: (data) => post('/users', data),
+  update: (id, data) => put(`/users/${id}`, data),
+  delete: (id) => del(`/users/${id}`)
+};
+
+export const orderAPI = {
+  getAll: (params) => get('/orders', params),
+  getById: (id) => get(`/orders/${id}`),
+  create: (data) => post('/orders', data),
+  update: (id, data) => put(`/orders/${id}`, data),
+  delete: (id) => del(`/orders/${id}`),
+  getMyOrders: () => get('/orders/my-orders')
+};
+
+export const addressAPI = {
+  getAll: () => get('/addresses'),
+  getById: (id) => get(`/addresses/${id}`),
+  create: (data) => post('/addresses', data),
+  update: (id, data) => put(`/addresses/${id}`, data),
+  delete: (id) => del(`/addresses/${id}`),
+  getMyAddresses: () => get('/addresses/my-addresses')
+};
+
+export const adminAPI = {
+  getDashboardStats: (timeFilter) => get('/dashboard/stats', { timeFilter }),
+  resetDatabase: () => post('/dashboard/reset-database')
+};
+
+export const reviewAPI = {
+  getProductReviews: (productId) => get(`/reviews/product/${productId}`),
+  addReview: (data) => post('/reviews', data),
+  updateReview: (id, data) => put(`/reviews/${id}`, data),
+  deleteReview: (id) => del(`/reviews/${id}`)
+};
+
+// Log API servisi
+export const logAPI = {
+  log: (level, message, meta = {}) => post('/logs', { level, message, meta }),
+  debug: (message, meta = {}) => logAPI.log('debug', message, meta),
+  info: (message, meta = {}) => logAPI.log('info', message, meta),
+  warn: (message, meta = {}) => logAPI.log('warn', message, meta),
+  error: (message, meta = {}) => logAPI.log('error', message, meta)
+};
+
 // Axios Instance ve yardımcı fonksiyonları dışa aktar
 export default {
   api,
   get,
   post,
   put,
-  del
+  del,
+  productAPI,
+  userAPI,
+  orderAPI,
+  logAPI,
+  addressAPI,
+  adminAPI,
+  reviewAPI
 };
