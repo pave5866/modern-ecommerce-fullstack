@@ -1,178 +1,165 @@
 const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
 
-const orderSchema = new mongoose.Schema({
-  orderNumber: {
+// Sipariş modeli alt şemaları
+const OrderItemSchema = new Schema({
+  product: {
+    type: Schema.Types.ObjectId,
+    ref: 'Product',
+    required: true
+  },
+  name: {
     type: String,
-    unique: true
+    required: true
   },
-  user: {
-    type: mongoose.Schema.ObjectId,
-    ref: 'User',
+  quantity: {
+    type: Number,
     required: true,
-    index: true
+    min: [1, 'Miktar en az 1 olmalıdır']
   },
-  items: [{
-    product: {
-      type: mongoose.Schema.ObjectId,
-      ref: 'Product',
-      required: true
-    },
-    name: String,
-    quantity: {
-      type: Number,
-      required: true,
-      min: 1
-    },
-    price: {
-      type: Number,
-      required: true
-    },
-    image: String
-  }],
-  shippingAddress: {
-    title: {
-      type: String,
-      required: true
-    },
-    fullName: {
-      type: String,
-      required: true
-    },
-    phone: {
-      type: String,
-      required: true
-    },
-    address: {
-      type: String,
-      required: true
-    },
-    city: {
-      type: String,
-      required: true
-    },
-    district: {
-      type: String,
-      required: true
-    },
-    postalCode: String,
-    country: {
-      type: String,
-      default: 'Türkiye'
-    }
-  },
-  paymentMethod: {
-    type: String,
-    required: true,
-    enum: ['Kredi Kartı', 'Havale/EFT', 'Kapıda Ödeme']
-  },
-  paymentResult: {
-    id: String,
-    status: String,
-    updateTime: String,
-    emailAddress: String
-  },
-  totalAmount: {
+  price: {
     type: Number,
     required: true
   },
-  shippingCost: {
+  image: String,
+  variants: [{
+    name: String,
+    value: String
+  }],
+  totalPrice: {
     type: Number,
-    required: true,
-    default: 0
-  },
-  status: {
-    type: String,
-    required: true,
-    enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
-    default: 'pending'
-  },
-  paymentStatus: {
-    type: String,
-    required: true,
-    enum: ['pending', 'paid', 'refunded'],
-    default: 'pending'
-  },
-  trackingNumber: String,
-  notes: String,
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
-  },
-  statusHistory: [{
-    status: {
-      type: String,
-      enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled']
-    },
-    date: {
-      type: Date,
-      default: Date.now
-    },
-    note: String
-  }]
-}, {
-  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
+    required: true
+  }
 });
 
-// Sipariş numarası oluşturma
+const ShippingAddressSchema = new Schema({
+  fullName: {
+    type: String,
+    required: true
+  },
+  address: {
+    type: String,
+    required: true
+  },
+  city: {
+    type: String,
+    required: true
+  },
+  postalCode: {
+    type: String,
+    required: true
+  },
+  country: {
+    type: String,
+    required: true
+  },
+  phone: {
+    type: String,
+    required: true
+  }
+});
+
+const PaymentResultSchema = new Schema({
+  id: String,
+  status: String,
+  update_time: String,
+  email_address: String,
+  paymentMethod: {
+    type: String,
+    enum: ['credit_card', 'banka_havale', 'paypal', 'kapida_odeme'],
+    default: 'credit_card'
+  },
+  details: Schema.Types.Mixed
+});
+
+// Ana Sipariş Şeması
+const orderSchema = new Schema(
+  {
+    user: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    orderItems: [OrderItemSchema],
+    shippingAddress: ShippingAddressSchema,
+    paymentMethod: {
+      type: String,
+      enum: ['credit_card', 'banka_havale', 'paypal', 'kapida_odeme'],
+      required: true
+    },
+    paymentResult: PaymentResultSchema,
+    itemsPrice: {
+      type: Number,
+      required: true,
+      default: 0.0
+    },
+    taxPrice: {
+      type: Number,
+      required: true,
+      default: 0.0
+    },
+    shippingPrice: {
+      type: Number,
+      required: true,
+      default: 0.0
+    },
+    discountPrice: {
+      type: Number,
+      default: 0.0
+    },
+    totalPrice: {
+      type: Number,
+      required: true,
+      default: 0.0
+    },
+    orderNumber: {
+      type: String,
+      unique: true
+    },
+    isPaid: {
+      type: Boolean,
+      required: true,
+      default: false
+    },
+    paidAt: Date,
+    isDelivered: {
+      type: Boolean,
+      required: true,
+      default: false
+    },
+    deliveredAt: Date,
+    status: {
+      type: String,
+      enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'],
+      default: 'pending'
+    },
+    notes: String,
+    trackingNumber: String,
+    couponCode: String,
+    invoiceUrl: String
+  },
+  {
+    timestamps: true
+  }
+);
+
+// Sipariş numarası oluştur
 orderSchema.pre('save', async function(next) {
   if (!this.orderNumber) {
-    const count = await mongoose.model('Order').countDocuments();
+    // SIPRIS-YYMMDDHHMM-XXXX formatında bir sipariş numarası oluştur
     const date = new Date();
-    const year = date.getFullYear().toString().slice(-2);
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-    this.orderNumber = `${year}${month}${day}-${(count + 1).toString().padStart(4, '0')}`;
+    const year = date.getFullYear().toString().substr(-2);
+    const month = ('0' + (date.getMonth() + 1)).slice(-2);
+    const day = ('0' + date.getDate()).slice(-2);
+    const hours = ('0' + date.getHours()).slice(-2);
+    const minutes = ('0' + date.getMinutes()).slice(-2);
+    const random = Math.floor(1000 + Math.random() * 9000); // 1000-9999 arası rastgele sayı
+    
+    this.orderNumber = `SIPARIS-${year}${month}${day}${hours}${minutes}-${random}`;
   }
   next();
 });
 
-// Sipariş durumunu güncelleme
-orderSchema.methods.updateStatus = function(status, note) {
-  this.status = status
-  this.statusHistory.push({
-    status,
-    note
-  })
-  return this.save()
-}
+const Order = mongoose.model('Order', orderSchema);
 
-// Ödeme durumunu güncelleme
-orderSchema.methods.updatePaymentStatus = function(status) {
-  this.paymentStatus = status
-  return this.save()
-}
-
-// Kargo takip numarasını güncelleme
-orderSchema.methods.updateTrackingNumber = function(trackingNumber) {
-  this.trackingNumber = trackingNumber
-  return this.save()
-}
-
-// Sipariş iptali
-orderSchema.methods.cancelOrder = function(note) {
-  this.status = 'cancelled'
-  this.statusHistory.push({
-    status: 'cancelled',
-    note
-  })
-  return this.save()
-}
-
-// Sipariş iade
-orderSchema.methods.refundOrder = function(note) {
-  this.status = 'cancelled'
-  this.paymentStatus = 'refunded'
-  this.statusHistory.push({
-    status: 'cancelled',
-    note: note || 'Sipariş iade edildi'
-  })
-  return this.save()
-}
-
-module.exports = mongoose.model('Order', orderSchema); 
+module.exports = Order;
