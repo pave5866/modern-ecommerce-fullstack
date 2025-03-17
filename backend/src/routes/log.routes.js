@@ -1,24 +1,18 @@
 const express = require('express');
 const router = express.Router();
-const logger = require('../utils/logger');
+const { protect, authorize } = require('../middlewares/auth');
+const logController = require('../controllers/log.controller');
 
-// Frontend loglarını almak için endpoint
-router.post('/', (req, res) => {
-  const { level, message, meta, source, timestamp } = req.body;
-  
-  // Log seviyesine göre uygun logger metodunu çağır
-  if (level === 'error') {
-    logger.error(`[${source}] ${message}`, meta);
-  } else if (level === 'warn') {
-    logger.warn(`[${source}] ${message}`, meta);
-  } else if (level === 'info') {
-    logger.info(`[${source}] ${message}`, meta);
-  } else {
-    logger.debug(`[${source}] ${message}`, meta);
-  }
-  
-  // Başarılı yanıt dön
-  res.status(200).json({ success: true });
-});
+// Tüm log işlemleri için authentication ve admin yetkileri gerekli
+router.use(protect);
+router.use(authorize('admin'));
 
-module.exports = router; 
+// Log rotaları
+router.get('/', logController.getLogs);
+router.post('/', logController.createLog);
+router.delete('/clear', logController.clearLogs);
+
+// Client logları için publice açık endpoint
+router.post('/client', logController.logClientError);
+
+module.exports = router;
