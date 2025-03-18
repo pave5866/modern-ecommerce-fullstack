@@ -1,0 +1,49 @@
+# Netlify yapılandırma dosyası
+[build]
+  base = "frontend"
+  publish = "dist"
+  command = "npm run build"
+
+# SPA yönlendirme için
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# CORS sorunlarını önlemek için - backend API'ye erişim için gerekli
+[[headers]]
+  for = "/*"
+    [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
+    Access-Control-Allow-Headers = "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+
+# Backend API yönlendirmesi için proxy
+[[redirects]]
+  from = "/api/*"
+  to = "https://modern-ecommerce-fullstack.onrender.com/api/:splat"
+  status = 200
+  force = true
+  headers = {X-From = "Netlify"}
+
+# Cache ayarları
+[build.processing]
+  skip_processing = false
+[build.processing.css]
+  bundle = true
+  minify = true
+[build.processing.js]
+  bundle = true
+  minify = true
+[build.processing.images]
+  compress = true
+# Environment variables
+[context.production.environment]
+  VITE_APP_ENV = "production"
+  VITE_APP_USE_DUMMY_DATA = "false"
+  VITE_APP_API_URL = "https://modern-ecommerce-fullstack.onrender.com/api"
+
+[context.deploy-preview.environment]
+  VITE_APP_ENV = "production"
+  VITE_APP_USE_DUMMY_DATA = "false"
+  VITE_APP_API_URL = "https://modern-ecommerce-fullstack.onrender.com/api"
