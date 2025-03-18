@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { body } = require('express-validator');
-const { protect, restrictTo } = require('../middlewares/auth');
+const { protect, authorize } = require('../middlewares/auth');
 const logger = require('../utils/logger');
 const Category = require('../models/category.model');
 
@@ -87,7 +87,7 @@ router.get('/slug/:slug', async (req, res) => {
 router.post(
   '/',
   protect,
-  restrictTo('admin'),
+  authorize('admin'),
   [
     body('name').notEmpty().withMessage('Kategori adı zorunludur'),
     body('description').optional()
@@ -132,7 +132,7 @@ router.post(
 router.put(
   '/:id',
   protect,
-  restrictTo('admin'),
+  authorize('admin'),
   async (req, res) => {
     try {
       const { name, description, image, parent, isActive } = req.body;
@@ -191,7 +191,7 @@ router.put(
 router.delete(
   '/:id',
   protect,
-  restrictTo('admin'),
+  authorize('admin'),
   async (req, res) => {
     try {
       const category = await Category.findById(req.params.id);
