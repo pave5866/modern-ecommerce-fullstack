@@ -3,7 +3,10 @@ const AppError = require('../utils/appError');
 const logger = require('../utils/logger');
 const DatauriParser = require('datauri/parser');
 const path = require('path');
-const fetch = require('node-fetch');
+// node-fetch yerine built-in https modülünü kullanacağız
+const https = require('https');
+const http = require('http');
+const URL = require('url').URL;
 
 // Buffer'ı DataURI'ye dönüştür
 const parser = new DatauriParser();
@@ -173,6 +176,38 @@ exports.uploadBase64Image = async (req, res, next) => {
   }
 };
 
+// URL'den başlık kontrolü yapmak için yardımcı fonksiyon
+const checkUrl = (urlString) => {
+  return new Promise((resolve, reject) => {
+    try {
+      const url = new URL(urlString);
+      const client = url.protocol === 'https:' ? https : http;
+      
+      const req = client.request(url, { method: 'HEAD' }, (res) => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          const contentType = res.headers['content-type'];
+          
+          if (!contentType || !contentType.startsWith('image/')) {
+            return reject(new Error('URL bir resme ait değil'));
+          }
+          
+          resolve({ ok: true, contentType });
+        } else {
+          reject(new Error(`URL geçersiz, durum kodu: ${res.statusCode}`));
+        }
+      });
+      
+      req.on('error', (err) => {
+        reject(new Error(`URL erişim hatası: ${err.message}`));
+      });
+      
+      req.end();
+    } catch (error) {
+      reject(new Error(`Geçersiz URL formatı: ${error.message}`));
+    }
+  });
+};
+
 // URL'den resim yükleme
 exports.uploadImageFromUrl = async (req, res, next) => {
   try {
@@ -186,19 +221,10 @@ exports.uploadImageFromUrl = async (req, res, next) => {
     
     // URL geçerliliğini kontrol et
     try {
-      const response = await fetch(url, { method: 'HEAD' });
-      
-      if (!response.ok) {
-        return next(new AppError('Geçersiz resim URL\'i. Erişilemiyor.', 400));
-      }
-      
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.startsWith('image/')) {
-        return next(new AppError('URL bir resme ait değil', 400));
-      }
-    } catch (fetchError) {
-      logger.error('URL doğrulama hatası:', { error: fetchError.message });
-      return next(new AppError('URL erişim hatası: ' + fetchError.message, 400));
+      await checkUrl(url);
+    } catch (error) {
+      logger.error('URL doğrulama hatası:', { error: error.message });
+      return next(new AppError(error.message, 400));
     }
     
     // Cloudinary'ye yükle
@@ -248,18 +274,17 @@ exports.deleteImage = async (req, res, next) => {
     const result = await cloudinary.uploader.destroy(publicId);
     
     if (result.result !== 'ok') {
-      return next(new AppError('Resim silinemedi: ' + result.result, 400));
+      return next(new AppError(`Resim silinirken hata oluştu: ${result.result}`, 400));
     }
 
-    logger.info('Resim silme başarılı:', { publicId, result: result.result });
-
+    logger.info('Resim silme işlemi başarılı:', { publicId });
+    
     res.status(200).json({
       success: true,
-      message: 'Resim başarıyla silindi',
-      data: { publicId }
+      message: 'Resim başarıyla silindi'
     });
   } catch (error) {
-    logger.error('Resim silme hatası:', { error: error.message, publicId: req.params.publicId });
+    logger.error('Resim silme hatası:', { error: error.message });
     next(error);
   }
 };
