@@ -1,3 +1,7 @@
+/**
+ * Özel Hata Sınıfı
+ * API hata mesajlarını yapılandırmak için kullanılır
+ */
 class AppError extends Error {
   constructor(message, statusCode) {
     super(message);
