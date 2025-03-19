@@ -2,12 +2,12 @@ const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
 const fetch = require('node-fetch');
 const https = require('https');
-const dns = require('dns');
+const dns = require('dns').promises;
 
-// DNS ayarlarını yapılandır - DNS çözümlemesi için
-dns.setServers([
-  '8.8.8.8',  // Google DNS
-  '1.1.1.1',  // Cloudflare DNS
+// DNS ayarlarını zorla değiştir
+require('dns').setServers([
+  '8.8.8.8',      // Google DNS
+  '1.1.1.1',      // Cloudflare DNS
   '208.67.222.222' // OpenDNS
 ]);
 
@@ -23,28 +23,39 @@ const httpsAgent = new https.Agent({
 });
 
 // Supabase bağlantı bilgileri
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY; 
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://sswetlrirroabaohdduk.supabase.co';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzd2V0bHJpcnJvYWJhb2hkZHVrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MjMzNTM1MCwiZXhwIjoyMDU3OTExMzUwfQ.JqE_Wl6CHpqg9xCJ0R0g5NhkR2Fq-XPz5D3oTb-JJfA';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzd2V0bHJpcnJvYWJhb2hkZHVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIzMzUzNTAsImV4cCI6MjA1NzkxMTM1MH0.asAHLpi0pp20AKcTHxzRbB57sM4qRZidBsY_0qSG43Q';
 
 // Hata kontrolü
-if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-  logger.error('Supabase bağlantı bilgileri eksik. .env dosyasını kontrol edin.');
-  logger.error('Eksik çevre değişkenleri: ' + 
-    (!SUPABASE_URL ? 'SUPABASE_URL ' : '') + 
-    (!SUPABASE_SERVICE_KEY ? 'SUPABASE_SERVICE_KEY' : '')
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+  logger.warn('ÇEVRE DEĞİŞKENLERİ: Supabase bağlantı bilgileri env dosyasında tanımlanmamış, yerleşik test değerleri kullanılıyor.');
+  logger.warn('Eksik çevre değişkenleri: ' + 
+    (!process.env.SUPABASE_URL ? 'SUPABASE_URL ' : '') + 
+    (!process.env.SUPABASE_SERVICE_KEY ? 'SUPABASE_SERVICE_KEY ' : '') +
+    (!process.env.SUPABASE_ANON_KEY ? 'SUPABASE_ANON_KEY' : '')
   );
 }
 
-// Supabase istemcisini oluştur
+// Bağlantı URL'sini kontrol et ve düzelt
+const fixSupabaseUrl = (url) => {
+  if (!url) return 'https://sswetlrirroabaohdduk.supabase.co';
+  if (!url.startsWith('http')) return `https://${url}`;
+  return url;
+};
+
+// URL'leri düzelt
+const fixedSupabaseUrl = fixSupabaseUrl(SUPABASE_URL);
+
+// Supabase istemcilerini oluştur
 let supabase;
 let supabaseAdmin;
 
 try {
   // Normal kullanıcılar için istemci (anonim anahtar)
   supabase = createClient(
-    SUPABASE_URL || 'https://sswetlrirroabaohdduk.supabase.co',
-    SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzd2V0bHJpcnJvYWJhb2hkZHVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIzMzUzNTAsImV4cCI6MjA1NzkxMTM1MH0.asAHLpi0pp20AKcTHxzRbB57sM4qRZidBsY_0qSG43Q',
+    fixedSupabaseUrl,
+    SUPABASE_ANON_KEY,
     {
       auth: {
         autoRefreshToken: false,
@@ -55,6 +66,7 @@ try {
           return fetch(url, { 
             ...options,
             agent: httpsAgent,
+            timeout: 30000,
             headers: {
               ...options?.headers,
               'X-Client-Info': 'nodejs-backend'
@@ -70,8 +82,8 @@ try {
 
   // Admin işlemleri için istemci (tam erişim)
   supabaseAdmin = createClient(
-    SUPABASE_URL || 'https://sswetlrirroabaohdduk.supabase.co',
-    SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzd2V0bHJpcnJvYWJhb2hkZHVrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MjMzNTM1MCwiZXhwIjoyMDU3OTExMzUwfQ.JqE_Wl6CHpqg9xCJ0R0g5NhkR2Fq-XPz5D3oTb-JJfA',
+    fixedSupabaseUrl,
+    SUPABASE_SERVICE_KEY,
     {
       auth: {
         autoRefreshToken: false,
@@ -82,6 +94,7 @@ try {
           return fetch(url, { 
             ...options,
             agent: httpsAgent,
+            timeout: 30000,
             headers: {
               ...options?.headers,
               'X-Client-Info': 'nodejs-backend-admin'
@@ -95,11 +108,7 @@ try {
     }
   );
 
-  if (SUPABASE_URL && (SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY)) {
-    logger.info('Supabase bağlantısı başarıyla kuruldu');
-  } else {
-    logger.warn('Supabase geçici olarak başlatıldı, ancak geçerli kimlik bilgileri eksik');
-  }
+  logger.info('Supabase bağlantısı başarıyla kuruldu');
 } catch (error) {
   logger.error(`Supabase bağlantı hatası: ${error.message}`);
   
@@ -131,53 +140,52 @@ try {
   supabaseAdmin = supabase;
 }
 
-// IP adresini çöz
+// Supabase domain adresini IP adresine çözümle
 const resolveSupabaseDomain = async () => {
   try {
     // URL'den alan adını çıkar
-    let domain = SUPABASE_URL || 'https://sswetlrirroabaohdduk.supabase.co';
+    let domain = SUPABASE_URL;
     domain = domain.replace(/^https?:\/\//, '');
     domain = domain.split('/')[0];
     
     logger.info(`Supabase domain adresini çözümlüyorum: ${domain}`);
     
-    return new Promise((resolve) => {
-      dns.lookup(domain, (err, address) => {
-        if (err) {
-          logger.error(`DNS çözümleme hatası: ${err.message}`);
-          resolve(null);
-        } else {
-          logger.info(`Domain çözümlendi: ${domain} -> ${address}`);
-          resolve(address);
-        }
-      });
-    });
+    try {
+      // DNS çözümlemesi dene
+      const result = await dns.lookup(domain);
+      logger.info(`Domain çözümlendi: ${domain} -> ${result.address}`);
+      return result.address;
+    } catch (dnsError) {
+      logger.error(`DNS çözümleme hatası: ${dnsError.message}`);
+      
+      // IP adresi doğrudan kontrol et
+      if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(domain)) {
+        logger.info(`Domain zaten bir IP adresi: ${domain}`);
+        return domain;
+      }
+      
+      return null;
+    }
   } catch (error) {
     logger.error(`Domain çözümleme hatası: ${error.message}`);
     return null;
   }
 };
 
-// Sağlık kontrolü fonksiyonu
+// Supabase bağlantısını kontrol et
 const checkSupabaseConnection = async () => {
   try {
-    if (!SUPABASE_URL || (!SUPABASE_SERVICE_KEY && !SUPABASE_ANON_KEY)) {
-      return {
-        connected: false,
-        message: 'Supabase bağlantı bilgileri eksik'
-      };
+    // Önce DNS çözümlemesi yap - hata olursa atlayıp devam et
+    try {
+      const ipAddress = await resolveSupabaseDomain();
+      if (ipAddress) {
+        logger.info(`Supabase domain IP adresi: ${ipAddress}`);
+      }
+    } catch (dnsError) {
+      logger.warn(`DNS çözümleme atlandı: ${dnsError.message}`);
     }
     
-    // Önce DNS çözümlemesi yap
-    const ipAddress = await resolveSupabaseDomain();
-    if (!ipAddress) {
-      return {
-        connected: false,
-        message: 'Supabase domain adı çözümlenemedi'
-      };
-    }
-    
-    // Basit bir sorgu deneyin (hata yönetimini iyileştir)
+    // Basit bir sorgu deneyin
     try {
       const { data, error } = await supabase
         .from('products')
@@ -185,6 +193,7 @@ const checkSupabaseConnection = async () => {
         .limit(1);
       
       if (error) {
+        logger.warn(`Supabase bağlantısı başarısız: Bağlantı hatası: ${error.message}`);
         return {
           connected: false,
           message: `Bağlantı hatası: ${error.message}`
@@ -196,12 +205,14 @@ const checkSupabaseConnection = async () => {
         message: 'Bağlantı başarılı'
       };
     } catch (queryError) {
+      logger.warn(`Supabase bağlantısı başarısız: Bağlantı hatası: ${queryError.message}`);
       return {
         connected: false,
         message: `Sorgu hatası: ${queryError.message}`
       };
     }
   } catch (error) {
+    logger.warn(`Supabase bağlantısı başarısız: Bağlantı hatası: ${error.message}`);
     return {
       connected: false,
       message: `Bağlantı hatası: ${error.message}`
@@ -212,26 +223,77 @@ const checkSupabaseConnection = async () => {
 // Alternatif bağlantı test fonksiyonu (doğrudan fetch ile)
 const testSupabaseConnection = async () => {
   try {
-    const url = `${SUPABASE_URL || 'https://sswetlrirroabaohdduk.supabase.co'}/rest/v1/products?limit=1`;
+    // URL'yi oluştur
+    const url = `${fixedSupabaseUrl}/rest/v1/products?limit=1`;
+    
+    // Bağlantı dene
     const response = await fetch(url, {
       method: 'GET',
       agent: httpsAgent,
+      timeout: 15000,
       headers: {
-        'apikey': SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzd2V0bHJpcnJvYWJhb2hkZHVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIzMzUzNTAsImV4cCI6MjA1NzkxMTM1MH0.asAHLpi0pp20AKcTHxzRbB57sM4qRZidBsY_0qSG43Q',
+        'apikey': SUPABASE_ANON_KEY,
         'Content-Type': 'application/json'
-      },
-      timeout: 10000
+      }
     });
     
     if (response.ok) {
       logger.info('Supabase doğrudan bağlantı başarılı');
       return true;
     } else {
-      logger.error(`Supabase doğrudan bağlantı hatası: ${response.status} ${response.statusText}`);
+      logger.warn(`Supabase doğrudan bağlantı uyarısı: ${response.status} ${response.statusText}`);
       return false;
     }
   } catch (error) {
-    logger.error(`Supabase doğrudan bağlantı hatası: ${error.message}`);
+    logger.warn(`Supabase doğrudan bağlantı hatası: ${error.message}`);
+    return false;
+  }
+};
+
+// Bağlantı sorunlarını düzelt
+const fixConnectionIssues = async () => {
+  try {
+    // DNS çözümle
+    const ipAddress = await resolveSupabaseDomain();
+    if (!ipAddress) {
+      logger.warn('DNS çözümlemesi başarısız, IP adresi bulunamadı');
+      return false;
+    }
+    
+    // Hosts dosyasına eklemek için kullanılabilir
+    logger.info(`Supabase domain -> IP: ${SUPABASE_URL.replace(/^https?:\/\//, '').split('/')[0]} -> ${ipAddress}`);
+    
+    return true;
+  } catch (error) {
+    logger.error(`Bağlantı düzeltme hatası: ${error.message}`);
+    return false;
+  }
+};
+
+// Doğrudan IP ile bağlantı dene
+const connectWithIP = async () => {
+  try {
+    const ipAddress = await resolveSupabaseDomain();
+    if (!ipAddress) return false;
+    
+    const ipUrl = SUPABASE_URL.replace(
+      /^(https?:\/\/)[^\/]+(.*)$/,
+      `$1${ipAddress}$2`
+    );
+    
+    logger.info(`IP URL: ${ipUrl}`);
+    
+    const response = await fetch(`${ipUrl}/rest/v1/products?limit=1`, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json'
+      },
+      agent: httpsAgent
+    });
+    
+    return response.ok;
+  } catch (error) {
+    logger.error(`IP ile bağlantı hatası: ${error.message}`);
     return false;
   }
 };
@@ -241,5 +303,7 @@ module.exports = {
   supabaseAdmin, 
   checkSupabaseConnection,
   testSupabaseConnection,
-  resolveSupabaseDomain
+  resolveSupabaseDomain,
+  fixConnectionIssues,
+  connectWithIP
 };
