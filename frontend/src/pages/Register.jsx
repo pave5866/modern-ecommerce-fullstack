@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { authAPI } from '../services/api';
+import { authAPI, testAPI } from '../services/api';
 import { showToast } from '../utils';
 import Button from '../components/ui/Button';
 import logger from '../utils/logger';
@@ -15,6 +15,37 @@ export default function Register({ onLogin }) {
   });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
+  const [apiStatus, setApiStatus] = useState(null);
+
+  // Sayfa yüklendiğinde API durumunu kontrol et
+  useEffect(() => {
+    const checkApiStatus = async () => {
+      try {
+        const response = await testAPI();
+        setApiStatus({
+          working: response.success,
+          message: response.message || response.error,
+          status: response.status
+        });
+        
+        if (!response.success) {
+          logger.warn('API erişilemez durumda', { 
+            status: response.status, 
+            error: response.error 
+          });
+        }
+      } catch (error) {
+        setApiStatus({
+          working: false,
+          message: 'API bağlantısı kurulamadı',
+          error: error.message
+        });
+        logger.error('API durumu kontrol edilirken hata', { error: error.message });
+      }
+    };
+    
+    checkApiStatus();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -74,6 +105,13 @@ export default function Register({ onLogin }) {
     try {
       logger.info('Kayıt yapılıyor', { email: formData.email });
       
+      // Detaylı hata ayıklama için
+      logger.info('Gönderilen kayıt verileri', {
+        name: formData.name,
+        email: formData.email,
+        passwordLength: formData.password.length
+      });
+      
       const response = await authAPI.register({
         name: formData.name,
         email: formData.email,
@@ -84,7 +122,7 @@ export default function Register({ onLogin }) {
         throw new Error(response.error || 'Kayıt yapılamadı');
       }
       
-      logger.info('Kayıt başarılı', { userId: response.user._id });
+      logger.info('Kayıt başarılı', { userId: response.user?._id });
       
       // Kayıt başarılı, kullanıcı bilgilerini ve token'ı sakla
       if (onLogin) {
@@ -108,7 +146,7 @@ export default function Register({ onLogin }) {
         setErrors((prev) => ({ ...prev, general: error.message }));
       }
       
-      showToast.error('Kayıt yapılamadı');
+      showToast.error('Kayıt yapılamadı: ' + error.message);
     } finally {
       setIsLoading(false);
     }
@@ -125,20 +163,39 @@ export default function Register({ onLogin }) {
             Zaten hesabınız var mı?{' '}
             <Link
               to="/login"
-              className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
+              className="font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
             >
               Giriş yapın
             </Link>
           </p>
         </div>
         
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {errors.general && (
-            <div className="bg-red-50 dark:bg-red-900 border-l-4 border-red-500 p-4 mb-4 rounded">
-              <p className="text-sm text-red-700 dark:text-red-200">{errors.general}</p>
+        {/* API Durum Bilgisi */}
+        {apiStatus && !apiStatus.working && (
+          <div className="bg-yellow-50 dark:bg-yellow-900 border-l-4 border-yellow-500 p-4 mb-4 rounded">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-yellow-700 dark:text-yellow-200">
+                  API bağlantısı kurulamadı. Kayıt işlemi geçici olarak kullanılamıyor olabilir.
+                </p>
+              </div>
             </div>
-          )}
-          
+          </div>
+        )}
+        
+        {/* Doğrulama Hatası */}
+        {errors.general && (
+          <div className="bg-red-50 dark:bg-red-900 border-l-4 border-red-500 p-4 mb-4 rounded">
+            <p className="text-sm text-red-700 dark:text-red-200">{errors.general}</p>
+          </div>
+        )}
+        
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <label htmlFor="name" className="sr-only">
@@ -155,7 +212,7 @@ export default function Register({ onLogin }) {
                 className={`appearance-none rounded-none relative block w-full px-3 py-2 border ${
                   errors.name 
                     ? 'border-red-300 dark:border-red-700 focus:ring-red-500 focus:border-red-500' 
-                    : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500'
+                    : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500 focus:border-primary-500'
                 } placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-700 rounded-t-md focus:outline-none focus:z-10 sm:text-sm`}
                 placeholder="Ad Soyad"
               />
@@ -178,7 +235,7 @@ export default function Register({ onLogin }) {
                 className={`appearance-none rounded-none relative block w-full px-3 py-2 border ${
                   errors.email 
                     ? 'border-red-300 dark:border-red-700 focus:ring-red-500 focus:border-red-500' 
-                    : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500'
+                    : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500 focus:border-primary-500'
                 } placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:z-10 sm:text-sm`}
                 placeholder="E-posta adresi"
               />
@@ -201,7 +258,7 @@ export default function Register({ onLogin }) {
                 className={`appearance-none rounded-none relative block w-full px-3 py-2 border ${
                   errors.password 
                     ? 'border-red-300 dark:border-red-700 focus:ring-red-500 focus:border-red-500' 
-                    : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500'
+                    : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500 focus:border-primary-500'
                 } placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:z-10 sm:text-sm`}
                 placeholder="Şifre"
               />
@@ -224,7 +281,7 @@ export default function Register({ onLogin }) {
                 className={`appearance-none rounded-none relative block w-full px-3 py-2 border ${
                   errors.confirmPassword 
                     ? 'border-red-300 dark:border-red-700 focus:ring-red-500 focus:border-red-500' 
-                    : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500'
+                    : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500 focus:border-primary-500'
                 } placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-700 rounded-b-md focus:outline-none focus:z-10 sm:text-sm`}
                 placeholder="Şifre Tekrarı"
               />
@@ -247,7 +304,7 @@ export default function Register({ onLogin }) {
           </div>
           
           <div className="text-sm text-center text-gray-600 dark:text-gray-300">
-            Kayıt olarak, <a href="#" className="text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300">Gizlilik Politikası</a> ve <a href="#" className="text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300">Kullanım Koşulları</a>'nı kabul etmiş olursunuz.
+            Kayıt olarak, <a href="#" className="text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300">Gizlilik Politikası</a> ve <a href="#" className="text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300">Kullanım Koşulları</a>'nı kabul etmiş olursunuz.
           </div>
         </form>
       </div>
