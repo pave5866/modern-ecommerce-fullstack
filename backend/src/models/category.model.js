@@ -1,30 +1,21 @@
 const mongoose = require('mongoose')
-const logger = require('../utils/logger')
 
 const categorySchema = new mongoose.Schema({
   name: {
     type: String,
     required: [true, 'Kategori adı zorunludur'],
-    trim: true,
     unique: true,
-    maxlength: [50, 'Kategori adı 50 karakterden uzun olamaz']
+    trim: true
   },
   slug: {
     type: String,
     unique: true,
-    lowercase: true,
-    index: true
+    lowercase: true
   },
-  description: {
-    type: String,
-    maxlength: [500, 'Açıklama 500 karakterden uzun olamaz']
-  },
-  image: {
-    type: String,
-    default: 'default-category.jpg'
-  },
+  description: String,
+  image: String,
   parent: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: mongoose.Schema.ObjectId,
     ref: 'Category',
     default: null
   },
@@ -74,13 +65,15 @@ categorySchema.virtual('children', {
 
 // Slug oluştur
 categorySchema.pre('save', function(next) {
-  if (this.isModified('name')) {
-    this.slug = this.name
-      .toLowerCase()
-      .replace(/[^a-zA-Z0-9]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-  }
+  if (!this.isModified('name')) return next()
+  
+  this.slug = this.name
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  
   next()
 })
 
@@ -118,20 +111,15 @@ categorySchema.methods.getChildren = async function() {
 
 // Tüm alt kategorileri getir (recursive)
 categorySchema.methods.getAllChildren = async function() {
-  try {
-    const children = await this.getChildren()
-    let allChildren = [...children]
+  const children = await this.getChildren()
+  let allChildren = [...children]
 
-    for (const child of children) {
-      const grandchildren = await child.getAllChildren()
-      allChildren = [...allChildren, ...grandchildren]
-    }
-
-    return allChildren
-  } catch (error) {
-    logger.error(`Alt kategorileri bulma hatası: ${error.message}`)
-    throw error
+  for (let child of children) {
+    const grandChildren = await child.getAllChildren()
+    allChildren = [...allChildren, ...grandChildren]
   }
+
+  return allChildren
 }
 
 // Kategoriyi taşı
@@ -152,23 +140,4 @@ categorySchema.methods.updateStatus = async function(isActive) {
   return await this.save()
 }
 
-// İsim veya slug ile kategori bulma
-categorySchema.statics.findByNameOrSlug = async function(identifier) {
-  try {
-    const category = await this.findOne({
-      $or: [
-        { name: identifier },
-        { slug: identifier }
-      ]
-    })
-    
-    return category
-  } catch (error) {
-    logger.error(`Kategori bulma hatası: ${error.message}`)
-    throw error
-  }
-}
-
-const Category = mongoose.model('Category', categorySchema)
-
-module.exports = Category 
+module.exports = mongoose.model('Category', categorySchema) 

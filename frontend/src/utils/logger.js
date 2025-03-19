@@ -1,146 +1,121 @@
 /**
- * Frontend için güvenli bir logger modülü
- * Üretim ortamında logları kapatabilir veya sadece belirli seviyeleri gösterebiliriz
+ * Basit bir logger implementasyonu.
+ * İsteğe bağlı olarak daha gelişmiş bir logger (winston, pino vb.) ile değiştirilebilir.
  */
 
-// Ortam değişkenine göre log seviyesini belirleme
-const LOG_LEVEL = import.meta.env.NODE_ENV === 'production' ? 'error' : 'debug';
+// Ortam değişkeni kontrolü
+const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
 
-// Log seviyeleri ve öncelikleri
+// Log seviyelerini tanımla
 const LOG_LEVELS = {
-  debug: 0,
-  info: 1,
-  warn: 2,
-  error: 3,
+  ERROR: 0,
+  WARN: 1,
+  INFO: 2,
+  DEBUG: 3,
 };
 
-// Seçilen log seviyesine göre logları gösterme/gizleme
-const shouldLog = (level) => {
-  return LOG_LEVELS[level] >= LOG_LEVELS[LOG_LEVEL];
+// Varsayılan log seviyesi (production ortamında sadece ERROR ve WARN, development ortamında hepsi)
+const defaultLogLevel = isDevelopment ? LOG_LEVELS.DEBUG : LOG_LEVELS.WARN;
+
+// Ortam değişkeninden log seviyesini al veya varsayılan kullan
+const getCurrentLogLevel = () => {
+  const envLevel = import.meta.env.VITE_LOG_LEVEL?.toUpperCase();
+  return envLevel && LOG_LEVELS[envLevel] !== undefined 
+    ? LOG_LEVELS[envLevel] 
+    : defaultLogLevel;
 };
 
-// Zaman damgası oluşturma
-const timestamp = () => {
-  return new Date().toISOString();
-};
-
-// Log formatını oluşturma
-const formatLog = (level, message, meta = {}) => {
-  const ts = timestamp();
-  const metaStr = Object.keys(meta).length ? JSON.stringify(meta) : '';
-  return `${ts} [${level.toUpperCase()}]: ${message} ${metaStr}`;
-};
-
-// Backend'e log gönderme
-const sendLogToBackend = async (level, message, meta = {}) => {
-  try {
-    // Sadece üretim ortamında backend'e gönder
-    if (import.meta.env.PROD) {
-      // logAPI kullanımını kaldırdık, döngüsel bağımlılık hatası oluyordu
-      const response = await fetch('/api/logs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          level,
-          message,
-          meta,
-          source: 'frontend',
-          timestamp: new Date().toISOString()
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Log gönderme hatası');
-      }
-    }
-  } catch (error) {
-    // Log gönderme hatası durumunda sessizce devam et
-    if (!import.meta.env.PROD) {
-      console.error('Log gönderilirken hata oluştu:', error);
-    }
-  }
-};
-
-// Güvenli log fonksiyonu - console kullanmadan
-const safeLog = (level, formattedMessage, message, meta) => {
-  // Üretim ortamında console kullanımını engelle
-  if (import.meta.env.PROD) {
-    // Üretim ortamında logları backend'e gönder
-    sendLogToBackend(level, message, meta);
-    return;
+// Console için farklı stillerde loglar oluştur
+const formatLogWithStyle = (level, message, data) => {
+  const timestamp = new Date().toISOString();
+  const dataStr = data ? ` ${JSON.stringify(data)}` : '';
+  
+  let style = '';
+  let prefix = '';
+  
+  switch (level) {
+    case 'ERROR':
+      style = 'background: #f44336; color: white; padding: 2px 4px; border-radius: 2px;';
+      prefix = '%c[ERROR]';
+      break;
+    case 'WARN':
+      style = 'background: #ff9800; color: white; padding: 2px 4px; border-radius: 2px;';
+      prefix = '%c[WARN]';
+      break;
+    case 'INFO':
+      style = 'background: #2196f3; color: white; padding: 2px 4px; border-radius: 2px;';
+      prefix = '%c[INFO]';
+      break;
+    case 'DEBUG':
+      style = 'background: #9e9e9e; color: white; padding: 2px 4px; border-radius: 2px;';
+      prefix = '%c[DEBUG]';
+      break;
+    default:
+      style = '';
+      prefix = `[${level}]`;
   }
   
-  // Geliştirme ortamında konsola yaz (ama üretimde değil)
-  if (!import.meta.env.PROD) {
-    switch (level) {
-      case 'debug':
-        console.debug(formattedMessage);
-        break;
-      case 'info':
-        console.info(formattedMessage);
-        break;
-      case 'warn':
-        console.warn(formattedMessage);
-        break;
-      case 'error':
-        console.error(formattedMessage);
-        break;
-      default:
-        console.log(formattedMessage);
-    }
-  }
-  
-  // Geliştirme ortamında DOM'a log ekleyebiliriz (opsiyonel)
-  if (typeof document !== 'undefined') {
-    let logContainer = document.getElementById('app-logs');
-    if (!logContainer) {
-      logContainer = document.createElement('div');
-      logContainer.id = 'app-logs';
-      logContainer.style.display = 'none'; // Gizli tut
-      document.body.appendChild(logContainer);
-    }
+  return {
+    prefix,
+    style,
+    text: `${timestamp} ${message}${dataStr}`
+  };
+};
+
+/**
+ * Hata logu oluşturur
+ * @param {string} message Log mesajı
+ * @param {object} data İlave log verisi
+ */
+const error = (message, data) => {
+  if (getCurrentLogLevel() >= LOG_LEVELS.ERROR) {
+    const { prefix, style, text } = formatLogWithStyle('ERROR', message, data);
+    console.error(prefix, style, text);
     
-    const logEntry = document.createElement('div');
-    logEntry.className = `log-entry log-${level}`;
-    logEntry.textContent = formattedMessage;
-    logContainer.appendChild(logEntry);
+    // İsteğe bağlı: Hataları bir hata izleme servisine göndermek için buraya kod eklenebilir
   }
 };
 
-// Logger fonksiyonları
-const logger = {
-  debug: (message, meta) => {
-    if (shouldLog('debug')) {
-      const formattedMessage = formatLog('debug', message, meta);
-      safeLog('debug', formattedMessage, message, meta);
-    }
-  },
-  
-  info: (message, meta) => {
-    if (shouldLog('info')) {
-      const formattedMessage = formatLog('info', message, meta);
-      safeLog('info', formattedMessage, message, meta);
-    }
-  },
-  
-  warn: (message, meta) => {
-    if (shouldLog('warn')) {
-      const formattedMessage = formatLog('warn', message, meta);
-      safeLog('warn', formattedMessage, message, meta);
-    }
-  },
-  
-  error: (message, meta) => {
-    if (shouldLog('error')) {
-      const formattedMessage = formatLog('error', message, meta);
-      safeLog('error', formattedMessage, message, meta);
-      
-      // Hata loglarını her zaman backend'e gönder
-      sendLogToBackend('error', message, meta);
-    }
+/**
+ * Uyarı logu oluşturur
+ * @param {string} message Log mesajı
+ * @param {object} data İlave log verisi
+ */
+const warn = (message, data) => {
+  if (getCurrentLogLevel() >= LOG_LEVELS.WARN) {
+    const { prefix, style, text } = formatLogWithStyle('WARN', message, data);
+    console.warn(prefix, style, text);
   }
 };
 
-export default logger;
+/**
+ * Bilgi logu oluşturur
+ * @param {string} message Log mesajı
+ * @param {object} data İlave log verisi
+ */
+const info = (message, data) => {
+  if (getCurrentLogLevel() >= LOG_LEVELS.INFO) {
+    const { prefix, style, text } = formatLogWithStyle('INFO', message, data);
+    console.info(prefix, style, text);
+  }
+};
+
+/**
+ * Debug logu oluşturur
+ * @param {string} message Log mesajı
+ * @param {object} data İlave log verisi
+ */
+const debug = (message, data) => {
+  if (getCurrentLogLevel() >= LOG_LEVELS.DEBUG) {
+    const { prefix, style, text } = formatLogWithStyle('DEBUG', message, data);
+    console.debug(prefix, style, text);
+  }
+};
+
+// Logger metodlarını dışa aktar
+export default {
+  error,
+  warn,
+  info,
+  debug,
+};

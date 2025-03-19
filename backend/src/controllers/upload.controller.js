@@ -1,23 +1,14 @@
-const cloudinary = require('../config/cloudinary');
+const { supabase } = require('../config/supabase');
 const AppError = require('../utils/appError');
 const logger = require('../utils/logger');
-const DatauriParser = require('datauri/parser');
 const path = require('path');
-// node-fetch yerine built-in https modülünü kullanacağız
-const https = require('https');
-const http = require('http');
-const URL = require('url').URL;
+const fetch = require('node-fetch');
+const { v4: uuidv4 } = require('uuid');
 
-// Buffer'ı DataURI'ye dönüştür
-const parser = new DatauriParser();
-const formatBuffer = (file) => {
-  try {
-    const extName = path.extname(file.originalname).toString();
-    return parser.format(extName, file.buffer).content;
-  } catch (error) {
-    logger.error('Buffer formatı dönüştürme hatası:', error);
-    throw new AppError('Dosya formatı dönüştürme hatası', 500);
-  }
+// Rastgele dosya adı oluştur
+const generateFileName = (originalName) => {
+  const extension = path.extname(originalName).toString();
+  return `${uuidv4()}${extension}`;
 };
 
 // Tek dosya yükleme
@@ -33,33 +24,40 @@ exports.uploadImage = async (req, res, next) => {
       mimetype: req.file.mimetype 
     });
 
-    // Buffer'ı DataURI formatına dönüştür
-    const fileUri = formatBuffer(req.file);
+    // Rastgele dosya adı oluştur
+    const fileName = generateFileName(req.file.originalname);
+    const filePath = `products/${fileName}`;
     
-    // Cloudinary'ye yükle
-    const result = await cloudinary.uploader.upload(fileUri, {
-      folder: 'products',
-      resource_type: 'auto',
-      transformation: [
-        { width: 1200, height: 1200, crop: 'limit' }, // Maksimum boyut
-        { quality: 'auto:good' }  // Otomatik kalite optimize
-      ]
-    });
-
-    logger.info('Resim yükleme başarılı:', { 
-      publicId: result.public_id,
-      url: result.secure_url
+    // Supabase Storage'a yükle
+    const { data, error } = await supabase.storage
+      .from('products')
+      .upload(filePath, req.file.buffer, {
+        contentType: req.file.mimetype,
+        cacheControl: '3600'
+      });
+    
+    if (error) {
+      logger.error('Resim yükleme hatası:', { error: error.message });
+      return next(new AppError('Resim yükleme hatası: ' + error.message, 500));
+    }
+    
+    // Public URL oluştur
+    const { data: publicData } = supabase.storage
+      .from('products')
+      .getPublicUrl(filePath);
+    
+    logger.info('Resim yükleme başarılı:', {
+      path: filePath,
+      url: publicData.publicUrl
     });
 
     res.status(201).json({
       success: true,
       data: {
-        publicId: result.public_id,
-        url: result.secure_url,
-        width: result.width,
-        height: result.height,
-        format: result.format,
-        resourceType: result.resource_type
+        publicId: filePath,
+        url: publicData.publicUrl,
+        path: filePath,
+        fileName
       }
     });
   } catch (error) {
@@ -80,28 +78,35 @@ exports.uploadMultipleImages = async (req, res, next) => {
     // Tüm resimleri yükleme
     const uploadPromises = req.files.map(async (file) => {
       try {
-        const fileUri = formatBuffer(file);
+        const fileName = generateFileName(file.originalname);
+        const filePath = `products/${fileName}`;
         
-        const result = await cloudinary.uploader.upload(fileUri, {
-          folder: 'products',
-          resource_type: 'auto',
-          transformation: [
-            { width: 1200, height: 1200, crop: 'limit' },
-            { quality: 'auto:good' }
-          ]
-        });
+        // Supabase Storage'a yükle
+        const { data, error } = await supabase.storage
+          .from('products')
+          .upload(filePath, file.buffer, {
+            contentType: file.mimetype,
+            cacheControl: '3600'
+          });
+        
+        if (error) {
+          throw new Error(error.message);
+        }
+        
+        // Public URL oluştur
+        const { data: publicData } = supabase.storage
+          .from('products')
+          .getPublicUrl(filePath);
         
         return {
-          publicId: result.public_id,
-          url: result.secure_url,
-          width: result.width,
-          height: result.height,
-          format: result.format,
-          resourceType: result.resource_type
+          publicId: filePath,
+          url: publicData.publicUrl,
+          path: filePath,
+          fileName
         };
       } catch (uploadError) {
         logger.error('Tekil resim yükleme hatası:', { error: uploadError.message });
-        throw uploadError; // Promise reject ile hata ilet
+        throw uploadError;
       }
     });
 
@@ -143,69 +148,54 @@ exports.uploadBase64Image = async (req, res, next) => {
 
     logger.info('Base64 resim yükleme başladı');
     
-    // Cloudinary'ye yükle
-    const result = await cloudinary.uploader.upload(image, {
-      folder: 'products',
-      resource_type: 'auto',
-      public_id: name ? path.parse(name).name : undefined,
-      transformation: [
-        { width: 1200, height: 1200, crop: 'limit' },
-        { quality: 'auto:good' }
-      ]
-    });
+    // Base64'ü blob'a çevir
+    const base64Data = image.split(';base64,').pop();
+    const fileBuffer = Buffer.from(base64Data, 'base64');
+    
+    // MIME tipi al
+    const mimeType = image.split(';')[0].split(':')[1];
+    const extension = mimeType.split('/')[1];
+    
+    // Dosya adı oluştur
+    const fileName = name ? `${name}.${extension}` : `${uuidv4()}.${extension}`;
+    const filePath = `products/${fileName}`;
+    
+    // Supabase Storage'a yükle
+    const { data, error } = await supabase.storage
+      .from('products')
+      .upload(filePath, fileBuffer, {
+        contentType: mimeType,
+        cacheControl: '3600'
+      });
+    
+    if (error) {
+      logger.error('Base64 resim yükleme hatası:', { error: error.message });
+      return next(new AppError('Resim yükleme hatası: ' + error.message, 500));
+    }
+    
+    // Public URL oluştur
+    const { data: publicData } = supabase.storage
+      .from('products')
+      .getPublicUrl(filePath);
 
-    logger.info('Base64 resim yükleme başarılı:', { 
-      publicId: result.public_id,
-      url: result.secure_url
+    logger.info('Base64 resim yükleme başarılı:', {
+      path: filePath,
+      url: publicData.publicUrl
     });
 
     res.status(201).json({
       success: true,
       data: {
-        publicId: result.public_id,
-        url: result.secure_url,
-        width: result.width,
-        height: result.height,
-        format: result.format,
-        resourceType: result.resource_type
+        publicId: filePath,
+        url: publicData.publicUrl,
+        path: filePath,
+        fileName
       }
     });
   } catch (error) {
     logger.error('Base64 resim yükleme hatası:', { error: error.message });
     next(error);
   }
-};
-
-// URL'den başlık kontrolü yapmak için yardımcı fonksiyon
-const checkUrl = (urlString) => {
-  return new Promise((resolve, reject) => {
-    try {
-      const url = new URL(urlString);
-      const client = url.protocol === 'https:' ? https : http;
-      
-      const req = client.request(url, { method: 'HEAD' }, (res) => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          const contentType = res.headers['content-type'];
-          
-          if (!contentType || !contentType.startsWith('image/')) {
-            return reject(new Error('URL bir resme ait değil'));
-          }
-          
-          resolve({ ok: true, contentType });
-        } else {
-          reject(new Error(`URL geçersiz, durum kodu: ${res.statusCode}`));
-        }
-      });
-      
-      req.on('error', (err) => {
-        reject(new Error(`URL erişim hatası: ${err.message}`));
-      });
-      
-      req.end();
-    } catch (error) {
-      reject(new Error(`Geçersiz URL formatı: ${error.message}`));
-    }
-  });
 };
 
 // URL'den resim yükleme
@@ -221,38 +211,62 @@ exports.uploadImageFromUrl = async (req, res, next) => {
     
     // URL geçerliliğini kontrol et
     try {
-      await checkUrl(url);
-    } catch (error) {
-      logger.error('URL doğrulama hatası:', { error: error.message });
-      return next(new AppError(error.message, 400));
-    }
-    
-    // Cloudinary'ye yükle
-    const result = await cloudinary.uploader.upload(url, {
-      folder: 'products',
-      resource_type: 'auto',
-      transformation: [
-        { width: 1200, height: 1200, crop: 'limit' },
-        { quality: 'auto:good' }
-      ]
-    });
-
-    logger.info('URL\'den resim yükleme başarılı:', { 
-      publicId: result.public_id,
-      url: result.secure_url
-    });
-
-    res.status(201).json({
-      success: true,
-      data: {
-        publicId: result.public_id,
-        url: result.secure_url,
-        width: result.width,
-        height: result.height,
-        format: result.format,
-        resourceType: result.resource_type
+      const response = await fetch(url, { method: 'HEAD' });
+      
+      if (!response.ok) {
+        return next(new AppError('Geçersiz resim URL\'i. Erişilemiyor.', 400));
       }
-    });
+      
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.startsWith('image/')) {
+        return next(new AppError('URL bir resme ait değil', 400));
+      }
+      
+      // Resim verilerini al
+      const imageResponse = await fetch(url);
+      const imageBuffer = await imageResponse.buffer();
+      
+      // Dosya adı oluştur
+      const extension = contentType.split('/')[1];
+      const fileName = `url_${uuidv4()}.${extension}`;
+      const filePath = `products/${fileName}`;
+      
+      // Supabase Storage'a yükle
+      const { data, error } = await supabase.storage
+        .from('products')
+        .upload(filePath, imageBuffer, {
+          contentType: contentType,
+          cacheControl: '3600'
+        });
+      
+      if (error) {
+        logger.error('URL\'den resim yükleme hatası:', { error: error.message });
+        return next(new AppError('Resim yükleme hatası: ' + error.message, 500));
+      }
+      
+      // Public URL oluştur
+      const { data: publicData } = supabase.storage
+        .from('products')
+        .getPublicUrl(filePath);
+  
+      logger.info('URL\'den resim yükleme başarılı:', {
+        path: filePath,
+        url: publicData.publicUrl
+      });
+  
+      res.status(201).json({
+        success: true,
+        data: {
+          publicId: filePath,
+          url: publicData.publicUrl,
+          path: filePath,
+          fileName
+        }
+      });
+    } catch (fetchError) {
+      logger.error('URL doğrulama hatası:', { error: fetchError.message });
+      return next(new AppError('URL erişim hatası: ' + fetchError.message, 400));
+    }
   } catch (error) {
     logger.error('URL\'den resim yükleme hatası:', { error: error.message });
     next(error);
@@ -265,26 +279,38 @@ exports.deleteImage = async (req, res, next) => {
     const { publicId } = req.params;
     
     if (!publicId) {
-      return next(new AppError('Silmek için public_id gerekli', 400));
+      return next(new AppError('Silmek için dosya yolu gerekli', 400));
     }
 
     logger.info('Resim silme işlemi başladı:', { publicId });
     
-    // Resmi Cloudinary'den sil
-    const result = await cloudinary.uploader.destroy(publicId);
+    // Path formatını düzelt
+    let filePath = publicId;
     
-    if (result.result !== 'ok') {
-      return next(new AppError(`Resim silinirken hata oluştu: ${result.result}`, 400));
+    // Eğer "products/" içermiyorsa ve "/" içermiyorsa, ön ek ekle
+    if (!filePath.includes('/')) {
+      filePath = `products/${filePath}`;
+    }
+    
+    // Supabase Storage'dan sil
+    const { data, error } = await supabase.storage
+      .from('products')
+      .remove([filePath]);
+    
+    if (error) {
+      logger.error('Resim silme hatası:', { error: error.message, publicId });
+      return next(new AppError('Resim silme hatası: ' + error.message, 500));
     }
 
-    logger.info('Resim silme işlemi başarılı:', { publicId });
-    
+    logger.info('Resim silme başarılı:', { publicId });
+
     res.status(200).json({
       success: true,
-      message: 'Resim başarıyla silindi'
+      message: 'Resim başarıyla silindi',
+      data: { publicId }
     });
   } catch (error) {
-    logger.error('Resim silme hatası:', { error: error.message });
+    logger.error('Resim silme hatası:', { error: error.message, publicId: req.params.publicId });
     next(error);
   }
 };
