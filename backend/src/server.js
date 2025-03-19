@@ -1,11 +1,11 @@
 require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const morgan = require('morgan');
 const winston = require('winston');
 const path = require('path');
 const fs = require('fs');
+const { connectDB } = require('./db/mongodb');
 
 // Winston logger yapılandırması
 const logger = winston.createLogger({
@@ -30,17 +30,7 @@ try {
   console.error('Logs klasörü oluşturulamadı:', error);
 }
 
-// Eksik bağımlılıkları kontrol et
-const missingDeps = [];
-try { require('express-validator'); } catch(e) { missingDeps.push('express-validator'); }
-try { require('bcryptjs'); } catch(e) { missingDeps.push('bcryptjs'); }
-try { require('@supabase/supabase-js'); } catch(e) { missingDeps.push('@supabase/supabase-js'); }
-
-if (missingDeps.length > 0) {
-  logger.error(`Eksik bağımlılıklar tespit edildi: ${missingDeps.join(', ')}`);
-  logger.info('Eksik bağımlılıkları yüklemek için: npm install ' + missingDeps.join(' '));
-}
-
+// Ana uygulama
 const app = express();
 
 // Middleware
@@ -48,28 +38,28 @@ app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
 
+// Eksik bağımlılıkları kontrol et ve logla
+try { 
+  const bcrypt = require('bcryptjs');
+  logger.info('bcryptjs modülü kullanılıyor', { service: 'ecommerce-api' });
+} catch(e) { 
+  logger.error('bcryptjs modülü yüklenemedi', { service: 'ecommerce-api' });
+}
+
 // Çevre değişkenlerini kontrol et
-const requiredEnvVars = ['MONGODB_URI', 'JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
+const requiredEnvVars = ['JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
 const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingEnvVars.length > 0) {
   logger.error(`Eksik çevre değişkenleri: ${missingEnvVars.join(', ')}`);
 }
 
-// Routes
-try {
-  app.use('/api/auth', require('./routes/auth.routes'));
-  app.use('/api/products', require('./routes/product.routes'));
-  app.use('/api/cart', require('./routes/cart.routes'));
-  app.use('/api/orders', require('./routes/order.routes'));
-
-  // Ek rotalar için try-catch (eğer bir rota dosyası eksikse hata vermesin)
-  try { app.use('/api/users', require('./routes/user.routes')); } catch(e) { logger.warn('user.routes yüklenemedi'); }
-  try { app.use('/api/categories', require('./routes/category.routes')); } catch(e) { logger.warn('category.routes yüklenemedi'); }
-  try { app.use('/api/upload', require('./routes/upload.routes')); } catch(e) { logger.warn('upload.routes yüklenemedi'); }
-} catch (error) {
-  logger.error(`Rota yükleme hatası: ${error.message}`);
-}
+// MongoDB bağlantısı
+connectDB().then(() => {
+  logger.info('MongoDB bağlantı fonksiyonu çalıştırıldı');
+}).catch(err => {
+  logger.error(`MongoDB bağlantı fonksiyonu hatası: ${err.message}`);
+});
 
 // Ana rota - API durumunu kontrol etmek için
 app.get('/', (req, res) => {
@@ -81,17 +71,25 @@ app.get('/', (req, res) => {
   });
 });
 
-// Veritabanı bağlantısı
-const connectDB = async () => {
+// Rotaları yükle
+try {
+  // auth.routes.js'yi kontrol et ve yükle
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/ecommerce');
-    logger.info(`MongoDB bağlantısı başarılı: ${conn.connection.host}`);
-  } catch (error) {
-    logger.error(`MongoDB bağlantı hatası: ${error.message}`);
+    app.use('/api/auth', require('./routes/auth.routes'));
+  } catch (err) {
+    logger.error(`auth.routes.js yüklenirken hata: ${err.message}`);
   }
-};
 
-connectDB();
+  // Diğer rotaları kontrol et ve yükle
+  try { app.use('/api/products', require('./routes/product.routes')); } catch(e) { logger.warn('product.routes yüklenemedi'); }
+  try { app.use('/api/cart', require('./routes/cart.routes')); } catch(e) { logger.warn('cart.routes yüklenemedi'); }
+  try { app.use('/api/orders', require('./routes/order.routes')); } catch(e) { logger.warn('order.routes yüklenemedi'); }
+  try { app.use('/api/users', require('./routes/user.routes')); } catch(e) { logger.warn('user.routes yüklenemedi'); }
+  try { app.use('/api/categories', require('./routes/category.routes')); } catch(e) { logger.warn('category.routes yüklenemedi'); }
+  try { app.use('/api/upload', require('./routes/upload.routes')); } catch(e) { logger.warn('upload.routes yüklenemedi'); }
+} catch (error) {
+  logger.error(`Rota yükleme genel hatası: ${error.message}`);
+}
 
 // 404 - Sayfa bulunamadı hatası
 app.use((req, res, next) => {
@@ -114,7 +112,7 @@ app.use((err, req, res, next) => {
 });
 
 // Port ayarları
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   logger.info(`Server ${PORT} portunda çalışıyor`);
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
@@ -122,13 +120,15 @@ app.listen(PORT, () => {
 
 // Yakalanmayan hataları işle
 process.on('uncaughtException', (err) => {
-  logger.error('YAKALANMAYAN İSTİSNA! Uygulama kapanıyor...');
+  logger.error('YAKALANMAYAN İSTİSNA!');
   logger.error(err.name, err.message, err.stack);
-  process.exit(1);
+  // Kritik hatalar durumunda bile sunucunun çalışmaya devam etmesi için
+  // process.exit(1) kullanmıyoruz
 });
 
 process.on('unhandledRejection', (err) => {
-  logger.error('İŞLENMEMİŞ VAAD REDDİ! Uygulama kapanıyor...');
+  logger.error('İŞLENMEMİŞ VAAD REDDİ!');
   logger.error(err.name, err.message, err.stack);
-  process.exit(1);
+  // Kritik hatalar durumunda bile sunucunun çalışmaya devam etmesi için
+  // process.exit(1) kullanmıyoruz
 });
