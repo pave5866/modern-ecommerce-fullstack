@@ -12,38 +12,25 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    commonjsOptions: {
-      transformMixedEsModules: true,
-    },
-    chunkSizeWarningLimit: 1600,
+    minify: 'terser',
+    // Bundle büyüklük uyarı limitini artır
+    chunkSizeWarningLimit: 2000,
+    // CSS'leri ayır
+    cssCodeSplit: true,
+    // Bundle'ı basitleştir
     rollupOptions: {
-      // Sorunlu modülleri dışarıda bırak
-      external: [
-        'react', 
-        'react-dom', 
-        'react-router-dom',
-        'react-redux',
-        '@reduxjs/toolkit',
-        'redux-persist',
-        'antd',
-        '@ant-design/icons'
-      ],
       output: {
-        // Global değişkenleri tanımla
-        globals: {
-          'react': 'React',
-          'react-dom': 'ReactDOM',
-          'react-redux': 'ReactRedux',
-          '@reduxjs/toolkit': 'RTK',
-          'redux-persist': 'ReduxPersist',
-          'antd': 'antd',
-          '@ant-design/icons': 'icons',
-          'react-router-dom': 'ReactRouterDOM'
-        },
-        // HTML için gerekli script eklemeleri
-        inlineDynamicImports: false,
-        // Script yükleme sırası
-        manualChunks: undefined
+        // Çıktı formatını düzenle
+        entryFileNames: 'assets/[name].[hash].js',
+        chunkFileNames: 'assets/[name].[hash].js',
+        assetFileNames: 'assets/[name].[hash].[ext]',
+        // Modülleri grupla
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            // Temel dependency'leri vendor'a koy
+            return 'vendor';
+          }
+        }
       }
     }
   },
@@ -57,9 +44,8 @@ export default defineConfig({
       },
     },
   },
-  // Hata ayıklama bilgilerini ekle
-  esbuild: {
-    logOverride: { 'this-is-undefined-in-esm': 'silent' },
-    keepNames: true,
+  // Farklı ortamlar için optimizasyonlar
+  define: {
+    'process.env.NODE_ENV': '"production"'
   },
 });
