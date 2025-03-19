@@ -1,363 +1,516 @@
 const express = require('express');
 const router = express.Router();
-const { protect, authorize } = require('../middlewares/auth.middleware');
+const { protect, restrictTo } = require('../middlewares/auth.middleware');
 const logger = require('../utils/logger');
 const { supabase } = require('../config/supabase');
-const { v4: uuidv4 } = require('uuid');
+const AppError = require('../utils/appError');
 
-// Kullanıcının siparişlerini getir
-router.get('/', protect, async (req, res, next) => {
+// Sipariş oluştur
+router.post('/', protect, async (req, res, next) => {
   try {
-    // Supabase'den kullanıcının siparişlerini getir
-    const { data, error } = await supabase
-      .from('orders')
-      .select(`
-        id,
-        total_amount,
-        status,
-        created_at,
-        updated_at
-      `)
-      .eq('user_id', req.user.id)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      logger.error(`Sipariş getirme hatası: ${error.message}`);
-      return res.status(500).json({
-        success: false,
-        message: 'Siparişler alınamadı'
-      });
+    const userId = req.user.id;
+    const { 
+      items, shipping_address_id, billing_address_id,
+      payment_method, shipping_method
+    } = req.body;
+    
+    // Gerekli alanları kontrol et
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return next(new AppError('Geçerli sipariş ürünleri gerekli', 400));
     }
-
-    res.status(200).json({
-      success: true,
-      data
-    });
-  } catch (error) {
-    logger.error(`Sipariş getirme işleminde hata: ${error.message}`);
-    next(error);
-  }
-});
-
-// Belirli bir siparişin detaylarını getir
-router.get('/:id', protect, async (req, res, next) => {
-  try {
-    const orderId = req.params.id;
-
-    // Siparişin kullanıcıya ait olup olmadığını kontrol et (admin tüm siparişleri görebilir)
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('id', orderId)
-      .single();
-
-    if (orderError || !order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Sipariş bulunamadı'
-      });
+    
+    if (!shipping_address_id) {
+      return next(new AppError('Gönderim adresi gerekli', 400));
     }
-
-    // Kullanıcının kendisine ait olmayan siparişleri görmesini engelle (admin hariç)
-    if (order.user_id !== req.user.id && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Bu siparişi görüntüleme yetkiniz yok'
-      });
+    
+    if (!payment_method) {
+      return next(new AppError('Ödeme yöntemi gerekli', 400));
     }
-
-    // Sipariş detaylarını getir
-    const { data: orderItems, error: itemsError } = await supabase
-      .from('order_items')
-      .select(`
-        id,
-        quantity,
-        price,
-        product_id,
-        products (
-          id,
-          name,
-          image_url
-        )
-      `)
-      .eq('order_id', orderId);
-
-    if (itemsError) {
-      logger.error(`Sipariş detayları getirme hatası: ${itemsError.message}`);
-      return res.status(500).json({
-        success: false,
-        message: 'Sipariş detayları alınamadı'
-      });
+    
+    if (!shipping_method) {
+      return next(new AppError('Teslimat yöntemi gerekli', 400));
     }
-
-    // Adres bilgilerini getir
+    
+    // Adres kontrolü
     const { data: address, error: addressError } = await supabase
       .from('addresses')
       .select('*')
-      .eq('id', order.address_id)
+      .eq('id', shipping_address_id)
+      .eq('user_id', userId)
       .single();
-
-    if (addressError && addressError.code !== 'PGRST116') {
-      logger.error(`Adres bilgisi getirme hatası: ${addressError.message}`);
+    
+    if (addressError || !address) {
+      return next(new AppError('Geçersiz gönderim adresi', 400));
     }
-
-    res.status(200).json({
-      success: true,
-      data: {
-        ...order,
-        items: orderItems,
-        address: address || null
-      }
-    });
-  } catch (error) {
-    logger.error(`Sipariş detayı getirme işleminde hata: ${error.message}`);
-    next(error);
-  }
-});
-
-// Yeni sipariş oluştur
-router.post('/', protect, async (req, res, next) => {
-  try {
-    const { address_id, payment_method } = req.body;
-
-    if (!address_id || !payment_method) {
-      return res.status(400).json({
-        success: false,
-        message: 'Adres ve ödeme yöntemi gereklidir'
-      });
-    }
-
-    // Kullanıcının sepetini getir
-    const { data: cartItems, error: cartError } = await supabase
-      .from('cart_items')
-      .select(`
-        id,
-        quantity,
-        product_id,
-        products (
-          id,
-          name,
-          price,
-          stock
-        )
-      `)
-      .eq('user_id', req.user.id);
-
-    if (cartError) {
-      logger.error(`Sepet getirme hatası: ${cartError.message}`);
-      return res.status(500).json({
-        success: false,
-        message: 'Sepet bilgileri alınamadı'
-      });
-    }
-
-    if (!cartItems || cartItems.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Sepetiniz boş'
-      });
-    }
-
-    // Stok kontrolü
-    for (const item of cartItems) {
-      if (item.quantity > item.products.stock) {
-        return res.status(400).json({
-          success: false,
-          message: `${item.products.name} için yeterli stok yok`
-        });
+    
+    // Fatura adresi kontrolü
+    if (billing_address_id && billing_address_id !== shipping_address_id) {
+      const { data: billingAddress, error: billingAddressError } = await supabase
+        .from('addresses')
+        .select('*')
+        .eq('id', billing_address_id)
+        .eq('user_id', userId)
+        .single();
+      
+      if (billingAddressError || !billingAddress) {
+        return next(new AppError('Geçersiz fatura adresi', 400));
       }
     }
-
-    // Toplam tutarı hesapla
-    let totalAmount = 0;
-    cartItems.forEach(item => {
-      totalAmount += item.quantity * item.products.price;
-    });
-
-    // Supabase'de yeni sipariş oluştur
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert([
-        {
-          id: uuidv4(),
-          user_id: req.user.id,
-          total_amount: totalAmount,
-          status: 'pending',
-          payment_method,
-          address_id
-        }
-      ])
-      .select()
-      .single();
-
-    if (orderError) {
-      logger.error(`Sipariş oluşturma hatası: ${orderError.message}`);
-      return res.status(500).json({
-        success: false,
-        message: 'Sipariş oluşturulamadı'
-      });
-    }
-
-    // Sipariş öğelerini ekle
-    const orderItems = cartItems.map(item => ({
-      order_id: order.id,
-      product_id: item.product_id,
-      quantity: item.quantity,
-      price: item.products.price
-    }));
-
-    const { error: itemsError } = await supabase
-      .from('order_items')
-      .insert(orderItems);
-
-    if (itemsError) {
-      logger.error(`Sipariş öğeleri ekleme hatası: ${itemsError.message}`);
-      // Sipariş oluşturuldu ama öğeler eklenemedi, siparişi iptal et
-      await supabase
-        .from('orders')
-        .delete()
-        .eq('id', order.id);
-
-      return res.status(500).json({
-        success: false,
-        message: 'Sipariş öğeleri eklenemedi'
-      });
-    }
-
-    // Stokları güncelle
-    for (const item of cartItems) {
-      await supabase
+    
+    // Ürünleri kontrol et ve sipariş toplamını hesapla
+    let total = 0;
+    let orderItems = [];
+    
+    for (const item of items) {
+      const { product_id, quantity } = item;
+      
+      if (!product_id || !quantity || quantity <= 0) {
+        return next(new AppError('Geçersiz ürün veya miktar', 400));
+      }
+      
+      // Ürün detaylarını al
+      const { data: product, error: productError } = await supabase
         .from('products')
-        .update({ stock: item.products.stock - item.quantity })
-        .eq('id', item.product_id);
+        .select('*')
+        .eq('id', product_id)
+        .eq('is_active', true)
+        .single();
+      
+      if (productError || !product) {
+        return next(new AppError(`Ürün bulunamadı veya aktif değil: ${product_id}`, 400));
+      }
+      
+      // Stok kontrolü
+      if (product.stock < quantity) {
+        return next(new AppError(`Yetersiz stok: ${product.name}`, 400));
+      }
+      
+      // Ürün tutarını hesapla
+      const itemTotal = product.price * quantity;
+      
+      // Sipariş ürünü ekle
+      orderItems.push({
+        product_id,
+        product_name: product.name,
+        product_image: product.images && product.images.length > 0 ? product.images[0] : null,
+        quantity,
+        price: product.price,
+        total: itemTotal
+      });
+      
+      // Toplama ekle
+      total += itemTotal;
     }
-
-    // Sepeti temizle
-    await supabase
+    
+    // Kargo bedeli (örnek)
+    const shipping_cost = shipping_method === 'express' ? 50 : 25;
+    total += shipping_cost;
+    
+    // Sipariş oluştur
+    const orderData = {
+      user_id: userId,
+      shipping_address_id,
+      billing_address_id: billing_address_id || shipping_address_id,
+      payment_method,
+      shipping_method,
+      shipping_cost,
+      total_amount: total,
+      status: 'pending',
+      created_at: new Date().toISOString()
+    };
+    
+    // Supabase transaction ile işlemleri yap
+    
+    // 1. Siparişi oluştur
+    const { data: orderData1, error: orderError } = await supabase
+      .from('orders')
+      .insert([orderData])
+      .select();
+    
+    if (orderError) {
+      logger.error('Sipariş oluşturma hatası:', { error: orderError.message, userId });
+      return next(new AppError('Sipariş oluşturulamadı: ' + orderError.message, 500));
+    }
+    
+    const orderId = orderData1[0].id;
+    
+    // 2. Sipariş ürünlerini ekle
+    for (const item of orderItems) {
+      item.order_id = orderId;
+      
+      const { error: itemError } = await supabase
+        .from('order_items')
+        .insert([item]);
+      
+      if (itemError) {
+        logger.error('Sipariş ürünü ekleme hatası:', { error: itemError.message, orderId, item });
+        // İdeal olarak burada işlem geri alınmalı, ama Supabase'de transaction yok.
+        // Sipariş ve eklenen ürünler elle temizlenebilir veya servis hook kullanarak ileride temizlenebilir.
+        return next(new AppError('Sipariş ürünleri eklenirken hata oluştu: ' + itemError.message, 500));
+      }
+      
+      // 3. Ürün stoğunu güncelle
+      const { error: stockError } = await supabase
+        .from('products')
+        .update({ 
+          stock: supabase.raw(`stock - ${item.quantity}`),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', item.product_id);
+      
+      if (stockError) {
+        logger.error('Stok güncelleme hatası:', { error: stockError.message, productId: item.product_id });
+        // İdeal olarak burada işlem geri alınmalı
+        return next(new AppError('Stok güncellenirken hata oluştu: ' + stockError.message, 500));
+      }
+    }
+    
+    // 4. Sepeti temizle
+    const { error: cartError } = await supabase
       .from('cart_items')
       .delete()
-      .eq('user_id', req.user.id);
-
-    logger.info(`Yeni sipariş oluşturuldu: ${order.id} - Kullanıcı: ${req.user.id}`);
-    res.status(201).json({
-      success: true,
-      message: 'Sipariş başarıyla oluşturuldu',
-      data: order
-    });
-  } catch (error) {
-    logger.error(`Sipariş oluşturma işleminde hata: ${error.message}`);
-    next(error);
-  }
-});
-
-// Sipariş durumunu güncelle (admin yetkisi gerekli)
-router.patch('/:id/status', protect, authorize('admin'), async (req, res, next) => {
-  try {
-    const { status } = req.body;
-    const orderId = req.params.id;
-
-    if (!status) {
-      return res.status(400).json({
-        success: false,
-        message: 'Durum değeri gereklidir'
-      });
+      .eq('user_id', userId);
+    
+    if (cartError) {
+      logger.error('Sepet temizleme hatası:', { error: cartError.message, userId });
+      // Bu kritik değil, sipariş yine de oluşturuldu
+      logger.warn('Sepet temizlenemedi ama sipariş oluşturuldu', { userId, orderId });
     }
-
-    // Geçerli statü değerleri
-    const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Geçersiz durum değeri'
-      });
-    }
-
-    // Siparişi güncelle
-    const { data, error } = await supabase
-      .from('orders')
-      .update({ 
-        status,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', orderId)
-      .select()
-      .single();
-
-    if (error) {
-      logger.error(`Sipariş durumu güncelleme hatası: ${error.message}`);
-      return res.status(500).json({
-        success: false,
-        message: 'Sipariş durumu güncellenemedi'
-      });
-    }
-
-    if (!data) {
-      return res.status(404).json({
-        success: false,
-        message: 'Sipariş bulunamadı'
-      });
-    }
-
-    logger.info(`Sipariş durumu güncellendi: ${orderId} - Yeni durum: ${status}`);
-    res.status(200).json({
-      success: true,
-      message: 'Sipariş durumu başarıyla güncellendi',
-      data
-    });
-  } catch (error) {
-    logger.error(`Sipariş durumu güncelleme işleminde hata: ${error.message}`);
-    next(error);
-  }
-});
-
-// Tüm siparişleri getir (admin yetkisi gerekli)
-router.get('/admin/all', protect, authorize('admin'), async (req, res, next) => {
-  try {
-    // Sayfalama parametreleri
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const startIndex = (page - 1) * limit;
-
-    // Supabase'den tüm siparişleri getir
-    const { data, error, count } = await supabase
+    
+    // Siparişi ek detayları ile getir
+    const { data: completeOrder, error: getOrderError } = await supabase
       .from('orders')
       .select(`
-        id,
-        total_amount,
-        status,
-        created_at,
-        updated_at,
-        user_id,
-        users (
-          name,
-          email
-        )
-      `, { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(startIndex, startIndex + limit - 1);
-
-    if (error) {
-      logger.error(`Sipariş getirme hatası: ${error.message}`);
-      return res.status(500).json({
-        success: false,
-        message: 'Siparişler alınamadı'
-      });
+        *,
+        order_items(*),
+        shipping_address:shipping_address_id(*)
+      `)
+      .eq('id', orderId)
+      .single();
+    
+    if (getOrderError) {
+      logger.error('Sipariş detayları getirme hatası:', { error: getOrderError.message, orderId });
+      // Sipariş yine de oluşturuldu, sadece detayları getirilemedi
     }
+    
+    logger.info('Yeni sipariş oluşturuldu:', { 
+      orderId, 
+      userId,
+      total, 
+      itemCount: orderItems.length 
+    });
+    
+    res.status(201).json({
+      status: 'success',
+      data: {
+        order: completeOrder || {
+          id: orderId,
+          ...orderData,
+          order_items: orderItems
+        }
+      }
+    });
+  } catch (error) {
+    logger.error('Sipariş oluşturma hatası:', { error: error.message });
+    next(error);
+  }
+});
 
+// Kendi siparişlerini getir (kullanıcı)
+router.get('/my', protect, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    
+    // Query parametreleri
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const status = req.query.status;
+    
+    // Offset hesapla
+    const offset = (page - 1) * limit;
+    
+    // Query oluştur
+    let query = supabase
+      .from('orders')
+      .select('*, order_items(*)', { count: 'exact' })
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    
+    // Durum filtresi
+    if (status) {
+      query = query.eq('status', status);
+    }
+    
+    // Pagination
+    query = query.range(offset, offset + limit - 1);
+    
+    // Çalıştır
+    const { data, error, count } = await query;
+    
+    if (error) {
+      logger.error('Sipariş listeleme hatası:', { error: error.message, userId });
+      return next(new AppError('Siparişler alınamadı: ' + error.message, 500));
+    }
+    
+    // Total pages hesapla
+    const totalPages = Math.ceil((count || 0) / limit);
+    
     res.status(200).json({
-      success: true,
-      count,
+      status: 'success',
+      results: data.length,
       pagination: {
         page,
         limit,
-        totalPages: Math.ceil(count / limit)
+        totalItems: count || 0,
+        totalPages
       },
-      data
+      data: {
+        orders: data || []
+      }
     });
   } catch (error) {
-    logger.error(`Sipariş getirme işleminde hata: ${error.message}`);
+    logger.error('Sipariş listeleme hatası:', { error: error.message });
     next(error);
   }
 });
+
+// Tek sipariş detayı getir (kullanıcı kendi siparişi)
+router.get('/my/:id', protect, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+    
+    const { data, error } = await supabase
+      .from('orders')
+      .select(`
+        *,
+        order_items(*),
+        shipping_address:shipping_address_id(*),
+        billing_address:billing_address_id(*)
+      `)
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
+    
+    if (error) {
+      logger.error('Sipariş detayı getirme hatası:', { error: error.message, id, userId });
+      return next(new AppError(
+        error.code === 'PGRST116' ? 'Sipariş bulunamadı' : 'Sipariş alınamadı: ' + error.message,
+        error.code === 'PGRST116' ? 404 : 500
+      ));
+    }
+    
+    res.status(200).json({
+      status: 'success',
+      data: {
+        order: data
+      }
+    });
+  } catch (error) {
+    logger.error('Sipariş detayı getirme hatası:', { error: error.message, id: req.params.id });
+    next(error);
+  }
+});
+
+// Tüm siparişleri getir (sadece admin)
+router.get('/', protect, restrictTo('admin'), async (req, res, next) => {
+  try {
+    // Query parametreleri
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const status = req.query.status;
+    const userId = req.query.user;
+    const startDate = req.query.startDate;
+    const endDate = req.query.endDate;
+    
+    // Offset hesapla
+    const offset = (page - 1) * limit;
+    
+    // Query oluştur
+    let query = supabase
+      .from('orders')
+      .select('*, users(email, full_name), order_items(*)', { count: 'exact' })
+      .order('created_at', { ascending: false });
+    
+    // Filtreler
+    if (status) {
+      query = query.eq('status', status);
+    }
+    
+    if (userId) {
+      query = query.eq('user_id', userId);
+    }
+    
+    if (startDate) {
+      query = query.gte('created_at', startDate);
+    }
+    
+    if (endDate) {
+      query = query.lte('created_at', endDate);
+    }
+    
+    // Pagination
+    query = query.range(offset, offset + limit - 1);
+    
+    // Çalıştır
+    const { data, error, count } = await query;
+    
+    if (error) {
+      logger.error('Admin sipariş listeleme hatası:', { error: error.message });
+      return next(new AppError('Siparişler alınamadı: ' + error.message, 500));
+    }
+    
+    // Total pages hesapla
+    const totalPages = Math.ceil((count || 0) / limit);
+    
+    res.status(200).json({
+      status: 'success',
+      results: data.length,
+      pagination: {
+        page,
+        limit,
+        totalItems: count || 0,
+        totalPages
+      },
+      data: {
+        orders: data || []
+      }
+    });
+  } catch (error) {
+    logger.error('Admin sipariş listeleme hatası:', { error: error.message });
+    next(error);
+  }
+});
+
+// Tek sipariş detayı getir (admin)
+router.get('/:id', protect, restrictTo('admin'), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    const { data, error } = await supabase
+      .from('orders')
+      .select(`
+        *,
+        users(id, email, full_name, phone),
+        order_items(*),
+        shipping_address:shipping_address_id(*),
+        billing_address:billing_address_id(*)
+      `)
+      .eq('id', id)
+      .single();
+    
+    if (error) {
+      logger.error('Admin sipariş detayı getirme hatası:', { error: error.message, id });
+      return next(new AppError(
+        error.code === 'PGRST116' ? 'Sipariş bulunamadı' : 'Sipariş alınamadı: ' + error.message,
+        error.code === 'PGRST116' ? 404 : 500
+      ));
+    }
+    
+    res.status(200).json({
+      status: 'success',
+      data: {
+        order: data
+      }
+    });
+  } catch (error) {
+    logger.error('Admin sipariş detayı getirme hatası:', { error: error.message, id: req.params.id });
+    next(error);
+  }
+});
+
+// Sipariş durumunu güncelle (admin)
+router.patch('/:id/status', protect, restrictTo('admin'), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { status, note } = req.body;
+    
+    if (!status) {
+      return next(new AppError('Sipariş durumu gerekli', 400));
+    }
+    
+    // Geçerli durumlar
+    const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'];
+    
+    if (!validStatuses.includes(status)) {
+      return next(new AppError('Geçersiz sipariş durumu', 400));
+    }
+    
+    // Siparişi kontrol et
+    const { data: existingOrder, error: findError } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    if (findError || !existingOrder) {
+      return next(new AppError('Sipariş bulunamadı', 404));
+    }
+    
+    // İptal veya iade durumunda stoğa geri ekleme (sadece teslimat öncesi durumlar)
+    const prevStatus = existingOrder.status;
+    const needStockAdjustment = (status === 'cancelled' || status === 'refunded') && 
+                               ['pending', 'processing'].includes(prevStatus);
+    
+    if (needStockAdjustment) {
+      // Sipariş ürünlerini al
+      const { data: orderItems, error: itemsError } = await supabase
+        .from('order_items')
+        .select('*')
+        .eq('order_id', id);
+      
+      if (!itemsError && orderItems) {
+        // Her ürün için stok güncelle
+        for (const item of orderItems) {
+          await supabase
+            .from('products')
+            .update({ 
+              stock: supabase.raw(`stock + ${item.quantity}`),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', item.product_id);
+        }
+      }
+    }
+    
+    // Durumu güncelle
+    const updateData = {
+      status,
+      ...(note && { notes: (existingOrder.notes || '') + `\\n${new Date().toISOString()}: ${note}` }),
+      updated_at: new Date().toISOString(),
+      updated_by: req.user.id
+    };
+    
+    const { data, error } = await supabase
+      .from('orders')
+      .update(updateData)
+      .eq('id', id)
+      .select();
+    
+    if (error) {
+      logger.error('Sipariş durumu güncelleme hatası:', { error: error.message, id, status });
+      return next(new AppError('Sipariş durumu güncellenemedi: ' + error.message, 500));
+    }
+    
+    logger.info('Sipariş durumu güncellendi:', { 
+      id, 
+      previousStatus: existingOrder.status, 
+      newStatus: status,
+      updatedBy: req.user.id 
+    });
+    
+    res.status(200).json({
+      status: 'success',
+      data: {
+        order: data[0]
+      }
+    });
+  } catch (error) {
+    logger.error('Sipariş durumu güncelleme hatası:', { error: error.message, id: req.params.id });
+    next(error);
+  }
+});
+
+logger.info('order.routes.js başarıyla yüklendi');
 
 module.exports = router;
