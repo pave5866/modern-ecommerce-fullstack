@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { useAuthStore } from './store'
 import Home from './pages/Home'
 import ProductDetail from './pages/ProductDetail'
 import ProductList from './pages/ProductList'
@@ -11,65 +10,59 @@ import Profile from './pages/Profile'
 import NotFound from './pages/NotFound'
 import Layout from './components/Layout'
 import { authAPI } from './services/api'
+import { useAuthStore } from './store'
 import logger from './utils/logger'
 
 function App() {
-  const { user, login, logout } = useAuthStore()
+  const { user, login: storeLogin, logout: storeLogout } = useAuthStore()
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('auth-storage')
-    const token = localStorage.getItem('token')
+    const checkAuth = async () => {
+      const storedUser = localStorage.getItem('user')
+      const token = localStorage.getItem('token')
 
-    if (storedUser && token) {
-      try {
-        // Zustand persist plugin ile kaydedilen verileri çekiyoruz
-        const parsedState = JSON.parse(storedUser)
-        
-        if (parsedState.state && parsedState.state.user) {
-          // Token'ın geçerliliğini kontrol et
-          const verifyToken = async () => {
-            try {
-              logger.info('Token doğrulanıyor')
-              const response = await authAPI.getProfile()
-              
-              if (response.success) {
-                // Token geçerli
-                logger.info('Token geçerli, kullanıcı girişi yapıldı')
-                login(parsedState.state.user, token)
-              } else {
-                // Token geçersiz, çıkış yap
-                logger.warn('Token geçersiz, çıkış yapılıyor')
-                logout()
-              }
-            } catch (error) {
-              logger.error('Token doğrulama hatası', { error: error.message })
-              logout()
-            } finally {
-              setLoading(false)
-            }
-          }
+      if (storedUser && token) {
+        try {
+          const userData = JSON.parse(storedUser)
+          storeLogin(userData, token)
           
-          verifyToken()
-        } else {
-          setLoading(false)
+          // Token'ın geçerliliğini kontrol et
+          const profileResponse = await authAPI.getProfile()
+          
+          if (!profileResponse.success) {
+            // Profil getirme başarısız, çıkış yap
+            logger.warn('Oturum doğrulanamadı, çıkış yapılıyor')
+            handleLogout()
+          } else {
+            // Profil bilgilerini güncelle
+            storeLogin(profileResponse.user, token)
+            logger.info('Kullanıcı oturumu doğrulandı')
+          }
+        } catch (error) {
+          logger.error('Token kontrolü sırasında hata', { error: error.message })
+          handleLogout()
         }
-      } catch (error) {
-        logger.error('Oturum verilerini çözümleme hatası', { error: error.message })
-        logout()
-        setLoading(false)
       }
-    } else {
+      
       setLoading(false)
     }
-  }, [login, logout])
+    
+    checkAuth()
+  }, [])
 
   const handleLogin = (userData, token) => {
-    login(userData, token)
+    storeLogin(userData, token)
+    localStorage.setItem('user', JSON.stringify(userData))
+    localStorage.setItem('token', token)
+    logger.info('Kullanıcı giriş yaptı', { userId: userData._id })
   }
 
   const handleLogout = () => {
-    logout()
+    storeLogout()
+    localStorage.removeItem('user')
+    localStorage.removeItem('token')
+    logger.info('Kullanıcı çıkış yaptı')
   }
 
   if (loading) {
@@ -82,7 +75,7 @@ function App() {
 
   return (
     <Routes>
-      <Route path="/" element={<Layout onLogout={handleLogout} />}>
+      <Route path="/" element={<Layout user={user} onLogout={handleLogout} />}>
         <Route index element={<Home />} />
         <Route path="products" element={<ProductList />} />
         <Route path="products/:id" element={<ProductDetail />} />
