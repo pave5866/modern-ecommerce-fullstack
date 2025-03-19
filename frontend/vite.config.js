@@ -8,6 +8,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // react-toastify için alias ekle
+      'react-toastify': path.resolve(__dirname, './src/utils/toastify-shim.js')
     },
   },
   build: {
@@ -19,13 +21,7 @@ export default defineConfig({
     cssCodeSplit: true,
     // Bundle'ı basitleştir
     rollupOptions: {
-      // Sorun çıkaran modülleri external olarak tanımla
-      external: ['react-toastify'],
       output: {
-        // Global değişkenleri tanımla
-        globals: {
-          'react-toastify': 'ReactToastify',
-        },
         // Çıktı formatını düzenle
         entryFileNames: 'assets/[name].[hash].js',
         chunkFileNames: 'assets/[name].[hash].js',
