@@ -1,5 +1,9 @@
 const { createClient } = require('@supabase/supabase-js');
 const logger = require('../utils/logger');
+const fetch = require('node-fetch'); // Node.js'de fetch kullanımı için
+
+// Global fetch değişkenini ayarla
+global.fetch = fetch;
 
 // Supabase bağlantı bilgileri
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -27,10 +31,7 @@ try {
       auth: {
         autoRefreshToken: false,
         persistSession: false
-      },
-      global: {
-        fetch: fetch.bind(globalThis),
-      },
+      }
     }
   );
 
@@ -42,10 +43,7 @@ try {
       auth: {
         autoRefreshToken: false,
         persistSession: false
-      },
-      global: {
-        fetch: fetch.bind(globalThis),
-      },
+      }
     }
   );
 
@@ -116,4 +114,49 @@ const checkSupabaseConnection = async () => {
   }
 };
 
-module.exports = { supabase, supabaseAdmin, checkSupabaseConnection };
+// Supabase kullanımı için yardımcı fonksiyonlar
+
+// Try-catch ile Supabase sorgularını çalıştır
+const safeQuery = async (queryFn) => {
+  try {
+    return await queryFn();
+  } catch (error) {
+    logger.error(`Supabase sorgu hatası: ${error.message}`);
+    return { data: null, error: new Error(`Sorgu hatası: ${error.message}`) };
+  }
+};
+
+// Güvenli veri alım fonksiyonu
+const safeFetch = async (table, query = {}) => {
+  return safeQuery(async () => {
+    const builder = supabase.from(table).select(query.select || '*');
+    
+    if (query.where) {
+      Object.entries(query.where).forEach(([key, value]) => {
+        builder.eq(key, value);
+      });
+    }
+    
+    if (query.order) {
+      builder.order(query.order.column, { ascending: query.order.ascending });
+    }
+    
+    if (query.limit) {
+      builder.limit(query.limit);
+    }
+    
+    if (query.offset) {
+      builder.range(query.offset, query.offset + (query.limit || 10) - 1);
+    }
+    
+    return await builder;
+  });
+};
+
+module.exports = { 
+  supabase, 
+  supabaseAdmin, 
+  checkSupabaseConnection,
+  safeFetch,
+  safeQuery
+};
