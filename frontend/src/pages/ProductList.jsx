@@ -276,7 +276,7 @@ export default function ProductList() {
                 className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm dark:bg-gray-700 dark:text-white"
               >
                 <option value="">Tüm Kategoriler</option>
-                {!isCategoriesLoading && categoriesList.length > 0 && categoriesList.map((category) => (
+                {!isCategoriesLoading && categoriesList && categoriesList.length > 0 && categoriesList.map((category) => (
                   <option key={category._id} value={category.name}>
                     {category.name}
                   </option>
@@ -346,7 +346,7 @@ export default function ProductList() {
             </div>
           ) : (
             <>
-              {productsList.length > 0 ? (
+              {productsList && productsList.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {productsList.map((product) => (
                     <ProductCard key={product._id} product={product} />
@@ -383,7 +383,7 @@ export default function ProductList() {
                       Önceki
                     </button>
                     
-                    {Array.from({ length: productsData.totalPages }, (_, i) => i + 1)
+                    {productsData.totalPages && Array.from({ length: productsData.totalPages }, (_, i) => i + 1)
                       .filter(page => {
                         // Toplam sayfa sayısı 7'den fazla ise bazı sayfaları atlayarak göster
                         if (productsData.totalPages <= 7) return true;
