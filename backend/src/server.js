@@ -4,7 +4,13 @@ const morgan = require('morgan');
 const dotenv = require('dotenv');
 const path = require('path');
 const logger = require('./utils/logger');
-const { checkSupabaseConnection, testSupabaseConnection, resolveSupabaseDomain } = require('./config/supabase');
+const { 
+  checkSupabaseConnection, 
+  testSupabaseConnection, 
+  resolveSupabaseDomain,
+  fixConnectionIssues,
+  connectWithIP
+} = require('./config/supabase');
 
 // Çevre değişkenlerini yükle
 dotenv.config();
@@ -75,6 +81,12 @@ app.get('/health', async (req, res) => {
     // Doğrudan bağlantı testi
     const directConnectionTest = await testSupabaseConnection();
     
+    // IP ile bağlantı dene
+    const ipConnectionTest = await connectWithIP();
+    
+    // Bağlantı sorunlarını düzeltmeyi dene
+    const fixedIssues = await fixConnectionIssues();
+    
     // Supabase bağlantı durumunu kontrol et
     const supabaseStatus = await checkSupabaseConnection();
     
@@ -86,7 +98,9 @@ app.get('/health', async (req, res) => {
           ...supabaseStatus,
           dnsResolved: ipAddress !== null,
           ipAddress,
-          directConnectionTest
+          directConnectionTest,
+          ipConnectionTest,
+          fixedIssues
         }
       });
     }
@@ -99,7 +113,9 @@ app.get('/health', async (req, res) => {
         ...supabaseStatus,
         dnsResolved: ipAddress !== null,
         ipAddress,
-        directConnectionTest
+        directConnectionTest,
+        ipConnectionTest,
+        fixedIssues
       }
     });
   } catch (error) {
@@ -123,6 +139,14 @@ app.get('/db-test', async (req, res) => {
     const directConnectionTest = await testSupabaseConnection();
     logger.info(`Doğrudan bağlantı testi: ${directConnectionTest ? 'başarılı' : 'başarısız'}`);
     
+    // IP ile bağlantı dene
+    const ipConnectionTest = await connectWithIP();
+    logger.info(`IP ile bağlantı testi: ${ipConnectionTest ? 'başarılı' : 'başarısız'}`);
+    
+    // Bağlantı sorunlarını düzeltmeyi dene
+    const fixedIssues = await fixConnectionIssues();
+    logger.info(`Bağlantı düzeltme: ${fixedIssues ? 'başarılı' : 'başarısız'}`);
+    
     // Çevre değişkenlerini kontrol et
     const envVars = {
       SUPABASE_URL: process.env.SUPABASE_URL ? 'ayarlanmış' : 'eksik',
@@ -139,6 +163,8 @@ app.get('/db-test', async (req, res) => {
         ipAddress
       },
       directConnectionTest,
+      ipConnectionTest,
+      fixedIssues,
       environmentVariables: envVars
     });
   } catch (error) {
@@ -156,6 +182,7 @@ try {
   // Auth rotaları
   const authRoutes = require('./routes/auth.routes');
   app.use('/api/auth', authRoutes);
+  logger.info('auth.routes.js başarıyla yüklendi');
   logger.info('Auth rotaları başarıyla yüklendi');
 } catch (error) {
   logger.error(`Auth rotaları yüklenemedi: ${error.message}`);
@@ -165,6 +192,7 @@ try {
   // Kullanıcı rotaları
   const userRoutes = require('./routes/user.routes');
   app.use('/api/users', userRoutes);
+  logger.info('user.routes.js başarıyla yüklendi');
   logger.info('Kullanıcı rotaları başarıyla yüklendi');
 } catch (error) {
   logger.error(`Kullanıcı rotaları yüklenemedi: ${error.message}`);
@@ -174,6 +202,7 @@ try {
   // Ürün rotaları
   const productRoutes = require('./routes/product.routes');
   app.use('/api/products', productRoutes);
+  logger.info('product.routes.js başarıyla yüklendi');
   logger.info('Ürün rotaları başarıyla yüklendi');
 } catch (error) {
   logger.error(`Ürün rotaları yüklenemedi: ${error.message}`);
@@ -183,6 +212,7 @@ try {
   // Kategori rotaları
   const categoryRoutes = require('./routes/category.routes');
   app.use('/api/categories', categoryRoutes);
+  logger.info('category.routes.js başarıyla yüklendi');
   logger.info('Kategori rotaları başarıyla yüklendi');
 } catch (error) {
   logger.error(`Kategori rotaları yüklenemedi: ${error.message}`);
@@ -192,6 +222,7 @@ try {
   // Sipariş rotaları
   const orderRoutes = require('./routes/order.routes');
   app.use('/api/orders', orderRoutes);
+  logger.info('order.routes.js başarıyla yüklendi');
   logger.info('Sipariş rotaları başarıyla yüklendi');
 } catch (error) {
   logger.error(`Sipariş rotaları yüklenemedi: ${error.message}`);
@@ -201,6 +232,7 @@ try {
   // Sepet rotaları
   const cartRoutes = require('./routes/cart.routes');
   app.use('/api/cart', cartRoutes);
+  logger.info('cart.routes.js başarıyla yüklendi');
   logger.info('Sepet rotaları başarıyla yüklendi');
 } catch (error) {
   logger.error(`Sepet rotaları yüklenemedi: ${error.message}`);
@@ -210,6 +242,7 @@ try {
   // Dosya yükleme rotaları
   const uploadRoutes = require('./routes/upload.routes');
   app.use('/api/upload', uploadRoutes);
+  logger.info('upload.routes.js başarıyla yüklendi');
   logger.info('Dosya yükleme rotaları başarıyla yüklendi');
 } catch (error) {
   logger.error(`Dosya yükleme rotaları yüklenemedi: ${error.message}`);
@@ -240,39 +273,53 @@ app.listen(PORT, () => {
   logger.info(`Sunucu ${PORT} portunda çalışıyor`);
   logger.info(`Mod: ${process.env.NODE_ENV || 'development'}`);
   
-  // DNS çözümlemesi yap
-  resolveSupabaseDomain()
-    .then(ipAddress => {
-      if (ipAddress) {
-        logger.info(`Supabase domain çözümleme başarılı: ${ipAddress}`);
-      } else {
-        logger.warn('Supabase domain çözümlemesi başarısız');
-      }
-      
-      // Doğrudan bağlantı testi
-      return testSupabaseConnection();
-    })
-    .then(directConnectionSuccess => {
-      if (directConnectionSuccess) {
-        logger.info('Supabase doğrudan bağlantı testi başarılı');
-      } else {
-        logger.warn('Supabase doğrudan bağlantı testi başarısız');
-      }
-      
-      // Supabase bağlantısını kontrol et
-      return checkSupabaseConnection();
-    })
-    .then(status => {
-      if (status.connected) {
-        logger.info('Supabase bağlantısı başarılı');
-      } else {
-        logger.warn(`Supabase bağlantısı başarısız: ${status.message}`);
-        logger.warn('API sınırlı modda çalışacak (bazı özellikler kullanılamayabilir)');
-      }
-    })
-    .catch(err => {
-      logger.error(`Supabase bağlantı kontrolü başarısız: ${err.message}`);
-    });
+  // Bağlantı sorunlarını önlemek için ana başlatma işlemleri
+  Promise.all([
+    // DNS çözümlemesi
+    resolveSupabaseDomain(),
+    // Bağlantı sorunlarını çözmeyi dene
+    fixConnectionIssues()
+  ])
+  .then(([ipAddress, fixed]) => {
+    if (ipAddress) {
+      logger.info(`Supabase domain çözümleme başarılı: ${ipAddress}`);
+    } else {
+      logger.warn('Supabase domain çözümlemesi başarısız');
+    }
+    
+    // Doğrudan bağlantı testi
+    return Promise.all([
+      testSupabaseConnection(),
+      connectWithIP()
+    ]);
+  })
+  .then(([directSuccess, ipSuccess]) => {
+    if (directSuccess) {
+      logger.info('Supabase doğrudan bağlantı testi başarılı');
+    } else {
+      logger.warn('Supabase doğrudan bağlantı testi başarısız');
+    }
+    
+    if (ipSuccess) {
+      logger.info('Supabase IP ile bağlantı testi başarılı');
+    } else {
+      logger.warn('Supabase IP ile bağlantı testi başarısız');
+    }
+    
+    // Supabase bağlantısını kontrol et
+    return checkSupabaseConnection();
+  })
+  .then(status => {
+    if (status.connected) {
+      logger.info('Supabase bağlantısı başarılı');
+    } else {
+      logger.warn(`Supabase bağlantısı başarısız: ${status.message}`);
+      logger.warn('API sınırlı modda çalışacak (bazı özellikler kullanılamayabilir)');
+    }
+  })
+  .catch(err => {
+    logger.error(`Supabase bağlantı kontrolü başarısız: ${err.message}`);
+  });
 });
 
 // İşlem sonlandırma sinyallerini yakala
