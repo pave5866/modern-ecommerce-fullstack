@@ -1,5 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
+// react-toastify yerine react-hot-toast veya message kullanıyoruz
+import toast from 'react-hot-toast';
 
 // API URL
 const API_URL = '/api/products';
