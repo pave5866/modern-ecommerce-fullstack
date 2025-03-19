@@ -1,54 +1,44 @@
-/**
- * Supabase bağlantı konfigürasyonu
- */
 const { createClient } = require('@supabase/supabase-js');
-const logger = require('../utils/logger');
+const winston = require('winston');
 
-// Supabase bağlantı bilgileri
-const supabaseUrl = process.env.SUPABASE_URL || 'https://sswetlrirroabaohdduk.supabase.co';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzd2V0bHJpcnJvYWJhb2hkZHVrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTcxNjQxMjUzOCwiZXhwIjoyMDMxOTg4NTM4fQ.MmfoE9s6cBaI7YwV9gPQn0wDQJdMEQVbwVmE2JEjwlM';
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzd2V0bHJpcnJvYWJhb2hkZHVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTY0MTI1MzgsImV4cCI6MjAzMTk4ODUzOH0.WQNLxG9gIQY7PaXW6BtxHDhqLQBN1HRyKc9fYEU2c88';
-
-// Bağlantı bilgilerini loglama (güvenlik için kısmi görüntüleme)
-logger.info('Supabase bağlantı bilgileri:', { 
-  url: supabaseUrl, 
-  serviceKey: supabaseServiceKey ? '***' + supabaseServiceKey.slice(-5) : 'Tanımlanmamış',
-  anonKey: supabaseAnonKey ? '***' + supabaseAnonKey.slice(-5) : 'Tanımlanmamış'
+// Winston logger yapılandırması
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'logs/combined.log' })
+  ]
 });
 
-// Supabase istemcisini oluştur (servis rolü ile - tam yetkili)
-let supabase;
-let supabaseAnon;
+// Supabase bağlantı bilgileri
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 
+let supabase = null;
+let supabaseAdmin = null;
+
+// Supabase istemcilerini oluştur
 try {
-  // Tam yetkili istemci
-  supabase = createClient(supabaseUrl, supabaseServiceKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  });
-
-  // Anonim kullanıcı için istemci
-  supabaseAnon = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true
-    }
-  });
-
-  logger.info('Supabase istemcisi başarıyla oluşturuldu', { url: supabaseUrl });
+  if (!supabaseUrl || !supabaseServiceKey) {
+    logger.error('Supabase bağlantı bilgileri eksik. SUPABASE_URL ve SUPABASE_SERVICE_KEY env değişkenleri gerekli.');
+    // Uygulama başlangıcında kritik ancak çalışmayı engellemek istemiyorsak default değerler atayabiliriz
+    supabase = createClient('https://placeholder-url.supabase.co', 'placeholder-key');
+    supabaseAdmin = createClient('https://placeholder-url.supabase.co', 'placeholder-key');
+  } else {
+    supabase = createClient(supabaseUrl, supabaseServiceKey);
+    supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    logger.info('Supabase bağlantısı başarıyla kuruldu');
+  }
 } catch (error) {
-  logger.error('Supabase istemcisi oluşturulurken hata:', { error: error.message });
-  
-  // Default olarak basit bir istemci oluştur
-  supabase = {
-    storage: { from: () => ({ upload: () => ({}), getPublicUrl: () => ({ data: { publicUrl: '' } }), remove: () => ({}) }) },
-    from: () => ({ select: () => ({ eq: () => ({ single: () => ({}) }) }), insert: () => ({}), update: () => ({}), delete: () => ({}) })
-  };
-  supabaseAnon = supabase;
-  
-  logger.warn('Supabase istemcisi oluşturulamadı, test modu etkinleştirildi');
+  logger.error(`Supabase bağlantısı oluşturulurken hata oluştu: ${error.message}`);
+  // Hata durumunda boş client oluştur, uygulama çalışmaya devam etsin
+  supabase = createClient('https://placeholder-url.supabase.co', 'placeholder-key');
+  supabaseAdmin = createClient('https://placeholder-url.supabase.co', 'placeholder-key');
 }
 
-module.exports = { supabase, supabaseAnon };
+module.exports = { supabase, supabaseAdmin };
