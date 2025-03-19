@@ -45,7 +45,7 @@ services:
     runtime: static
     rootDir: frontend
     plan: free
-    buildCommand: npm install && npm run build
+    buildCommand: "chmod +x render-build.sh && ./render-build.sh"
     staticPublishPath: ./dist
     envVars:
       - key: VITE_SUPABASE_URL
@@ -65,6 +65,11 @@ services:
         value: true
       - key: VITE_APP_NAME
         value: ModernShop
+      # Yapılandırma değişkenleri
+      - key: VITE_BUILD_SOURCEMAP
+        value: false
+      - key: VITE_DROP_CONSOLE
+        value: true
     routes:
       - type: rewrite
         source: /*
@@ -72,4 +77,4 @@ services:
     headers:
       - path: /*
         name: Cache-Control
-        value: no-cache 
+        value: no-cache
