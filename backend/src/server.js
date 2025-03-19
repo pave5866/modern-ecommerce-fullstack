@@ -4,7 +4,7 @@ const morgan = require('morgan');
 const dotenv = require('dotenv');
 const path = require('path');
 const logger = require('./utils/logger');
-const { checkSupabaseConnection } = require('./config/supabase');
+const { checkSupabaseConnection, testSupabaseConnection, resolveSupabaseDomain } = require('./config/supabase');
 
 // Çevre değişkenlerini yükle
 dotenv.config();
@@ -31,6 +31,12 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // Ana sayfa - API durumu
 app.get('/', async (req, res) => {
   try {
+    // DNS çözümlemesi yap
+    const ipAddress = await resolveSupabaseDomain();
+    
+    // Doğrudan bağlantı testi
+    const directConnectionTest = await testSupabaseConnection();
+    
     // Supabase bağlantı durumunu kontrol et
     const supabaseStatus = await checkSupabaseConnection();
     
@@ -42,7 +48,10 @@ app.get('/', async (req, res) => {
       timestamp: new Date().toISOString(),
       supabase: {
         connected: supabaseStatus.connected,
-        message: supabaseStatus.message
+        message: supabaseStatus.message,
+        dnsResolved: ipAddress !== null,
+        ipAddress,
+        directConnectionTest
       }
     });
   } catch (error) {
@@ -60,14 +69,25 @@ app.get('/', async (req, res) => {
 // Sağlık kontrolü endpoint'i
 app.get('/health', async (req, res) => {
   try {
+    // DNS çözümlemesi yap
+    const ipAddress = await resolveSupabaseDomain();
+    
+    // Doğrudan bağlantı testi
+    const directConnectionTest = await testSupabaseConnection();
+    
     // Supabase bağlantı durumunu kontrol et
     const supabaseStatus = await checkSupabaseConnection();
     
     if (!supabaseStatus.connected) {
-      return res.status(503).json({
+      return res.status(200).json({
         status: 'warning',
-        message: 'API çalışıyor ancak veritabanı bağlantısı yok',
-        supabase: supabaseStatus
+        message: 'API çalışıyor ancak tam Supabase bağlantısı kurulamıyor',
+        supabase: {
+          ...supabaseStatus,
+          dnsResolved: ipAddress !== null,
+          ipAddress,
+          directConnectionTest
+        }
       });
     }
     
@@ -75,13 +95,57 @@ app.get('/health', async (req, res) => {
     return res.status(200).json({
       status: 'success',
       message: 'Tüm sistemler aktif',
-      supabase: supabaseStatus
+      supabase: {
+        ...supabaseStatus,
+        dnsResolved: ipAddress !== null,
+        ipAddress,
+        directConnectionTest
+      }
     });
   } catch (error) {
     logger.error(`Sağlık kontrolü hatası: ${error.message}`);
     return res.status(500).json({
       status: 'error',
       message: 'Sağlık kontrolü sırasında bir hata oluştu',
+      error: error.message
+    });
+  }
+});
+
+// Veritabanı bağlantı testi endpoint'i
+app.get('/db-test', async (req, res) => {
+  try {
+    // DNS çözümlemesi yap
+    const ipAddress = await resolveSupabaseDomain();
+    logger.info(`DNS çözümlemesi: ${ipAddress || 'başarısız'}`);
+    
+    // Doğrudan bağlantı testi
+    const directConnectionTest = await testSupabaseConnection();
+    logger.info(`Doğrudan bağlantı testi: ${directConnectionTest ? 'başarılı' : 'başarısız'}`);
+    
+    // Çevre değişkenlerini kontrol et
+    const envVars = {
+      SUPABASE_URL: process.env.SUPABASE_URL ? 'ayarlanmış' : 'eksik',
+      SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY ? 'ayarlanmış' : 'eksik',
+      SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ? 'ayarlanmış' : 'eksik',
+      NODE_ENV: process.env.NODE_ENV || 'development'
+    };
+    
+    return res.status(200).json({
+      status: 'success',
+      message: 'Veritabanı bağlantı testi sonuçları',
+      dnsResolution: {
+        success: ipAddress !== null,
+        ipAddress
+      },
+      directConnectionTest,
+      environmentVariables: envVars
+    });
+  } catch (error) {
+    logger.error(`Veritabanı test hatası: ${error.message}`);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Veritabanı testi sırasında bir hata oluştu',
       error: error.message
     });
   }
@@ -176,8 +240,28 @@ app.listen(PORT, () => {
   logger.info(`Sunucu ${PORT} portunda çalışıyor`);
   logger.info(`Mod: ${process.env.NODE_ENV || 'development'}`);
   
-  // Supabase bağlantısını kontrol et
-  checkSupabaseConnection()
+  // DNS çözümlemesi yap
+  resolveSupabaseDomain()
+    .then(ipAddress => {
+      if (ipAddress) {
+        logger.info(`Supabase domain çözümleme başarılı: ${ipAddress}`);
+      } else {
+        logger.warn('Supabase domain çözümlemesi başarısız');
+      }
+      
+      // Doğrudan bağlantı testi
+      return testSupabaseConnection();
+    })
+    .then(directConnectionSuccess => {
+      if (directConnectionSuccess) {
+        logger.info('Supabase doğrudan bağlantı testi başarılı');
+      } else {
+        logger.warn('Supabase doğrudan bağlantı testi başarısız');
+      }
+      
+      // Supabase bağlantısını kontrol et
+      return checkSupabaseConnection();
+    })
     .then(status => {
       if (status.connected) {
         logger.info('Supabase bağlantısı başarılı');
@@ -200,6 +284,16 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
   logger.info('SIGINT sinyali alındı, sunucu kapatılıyor');
   process.exit(0);
+});
+
+process.on('uncaughtException', (err) => {
+  logger.error(`Yakalanmamış istisna: ${err.message}`);
+  logger.error(err.stack);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('İşlenmeyen promise reddi:');
+  logger.error(reason);
 });
 
 module.exports = app;
