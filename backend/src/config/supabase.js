@@ -1,44 +1,119 @@
 const { createClient } = require('@supabase/supabase-js');
-const winston = require('winston');
-
-// Winston logger yapılandırması
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'logs/combined.log' })
-  ]
-});
+const logger = require('../utils/logger');
 
 // Supabase bağlantı bilgileri
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
-let supabase = null;
-let supabaseAdmin = null;
-
-// Supabase istemcilerini oluştur
-try {
-  if (!supabaseUrl || !supabaseServiceKey) {
-    logger.error('Supabase bağlantı bilgileri eksik. SUPABASE_URL ve SUPABASE_SERVICE_KEY env değişkenleri gerekli.');
-    // Uygulama başlangıcında kritik ancak çalışmayı engellemek istemiyorsak default değerler atayabiliriz
-    supabase = createClient('https://placeholder-url.supabase.co', 'placeholder-key');
-    supabaseAdmin = createClient('https://placeholder-url.supabase.co', 'placeholder-key');
-  } else {
-    supabase = createClient(supabaseUrl, supabaseServiceKey);
-    supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-    logger.info('Supabase bağlantısı başarıyla kuruldu');
-  }
-} catch (error) {
-  logger.error(`Supabase bağlantısı oluşturulurken hata oluştu: ${error.message}`);
-  // Hata durumunda boş client oluştur, uygulama çalışmaya devam etsin
-  supabase = createClient('https://placeholder-url.supabase.co', 'placeholder-key');
-  supabaseAdmin = createClient('https://placeholder-url.supabase.co', 'placeholder-key');
+// Hata kontrolü
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+  logger.error('Supabase bağlantı bilgileri eksik. .env dosyasını kontrol edin.');
+  logger.error('Eksik çevre değişkenleri: ' + 
+    (!SUPABASE_URL ? 'SUPABASE_URL ' : '') + 
+    (!SUPABASE_SERVICE_KEY ? 'SUPABASE_SERVICE_KEY' : '')
+  );
 }
 
-module.exports = { supabase, supabaseAdmin };
+// Supabase istemcisini oluştur
+let supabase;
+let supabaseAdmin;
+
+try {
+  // Normal kullanıcılar için istemci
+  supabase = createClient(
+    SUPABASE_URL || 'https://placeholder-url.supabase.co',
+    SUPABASE_SERVICE_KEY || 'placeholder-key-for-initialization',
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      },
+      global: {
+        fetch: fetch.bind(globalThis),
+      },
+    }
+  );
+
+  // Admin işlemleri için istemci (tam erişim)
+  supabaseAdmin = createClient(
+    SUPABASE_URL || 'https://placeholder-url.supabase.co',
+    SUPABASE_SERVICE_KEY || 'placeholder-key-for-initialization',
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      },
+      global: {
+        fetch: fetch.bind(globalThis),
+      },
+    }
+  );
+
+  if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+    logger.info('Supabase bağlantısı başarıyla kuruldu');
+  } else {
+    logger.warn('Supabase geçici olarak başlatıldı, ancak geçerli kimlik bilgileri eksik');
+  }
+} catch (error) {
+  logger.error(`Supabase bağlantı hatası: ${error.message}`);
+  
+  // Hata durumunda bile uygulamanın çalışması için sahte bir istemci oluştur
+  supabase = {
+    from: () => ({ 
+      select: () => Promise.resolve({ data: [], error: new Error('Supabase bağlantısı kurulamadı') }),
+      insert: () => Promise.resolve({ data: null, error: new Error('Supabase bağlantısı kurulamadı') }),
+      update: () => Promise.resolve({ data: null, error: new Error('Supabase bağlantısı kurulamadı') }),
+      delete: () => Promise.resolve({ data: null, error: new Error('Supabase bağlantısı kurulamadı') }),
+    }),
+    storage: {
+      from: () => ({
+        upload: () => Promise.resolve({ data: null, error: new Error('Supabase bağlantısı kurulamadı') }),
+        download: () => Promise.resolve({ data: null, error: new Error('Supabase bağlantısı kurulamadı') }),
+        getPublicUrl: () => ({ data: { publicUrl: '' } }),
+        remove: () => Promise.resolve({ data: null, error: new Error('Supabase bağlantısı kurulamadı') })
+      })
+    },
+    auth: {
+      signUp: () => Promise.resolve({ data: null, error: new Error('Supabase bağlantısı kurulamadı') }),
+      signIn: () => Promise.resolve({ data: null, error: new Error('Supabase bağlantısı kurulamadı') }),
+      signOut: () => Promise.resolve({ error: new Error('Supabase bağlantısı kurulamadı') }),
+      getUser: () => Promise.resolve({ data: { user: null }, error: new Error('Supabase bağlantısı kurulamadı') }),
+      getSession: () => Promise.resolve({ data: { session: null }, error: new Error('Supabase bağlantısı kurulamadı') })
+    }
+  };
+  
+  supabaseAdmin = supabase;
+}
+
+// Sağlık kontrolü fonksiyonu
+const checkSupabaseConnection = async () => {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+      return {
+        connected: false,
+        message: 'Supabase bağlantı bilgileri eksik'
+      };
+    }
+    
+    const { error } = await supabase.auth.getSession();
+    
+    if (error) {
+      return {
+        connected: false,
+        message: `Bağlantı hatası: ${error.message}`
+      };
+    }
+    
+    return {
+      connected: true,
+      message: 'Bağlantı başarılı'
+    };
+  } catch (error) {
+    return {
+      connected: false,
+      message: `Bağlantı hatası: ${error.message}`
+    };
+  }
+};
+
+module.exports = { supabase, supabaseAdmin, checkSupabaseConnection };
