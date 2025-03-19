@@ -1,78 +1,152 @@
-const { body, param, validationResult } = require('express-validator');
-const createError = require('http-errors');
+const { check, validationResult } = require('express-validator');
 
-// Validation error handler
-const handleValidationErrors = (req, res, next) => {
+// Hataları inceleme ve kullanıcıya geri bildirim sağlama
+exports.validateRequest = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    const error = createError(400, 'Validation Error');
-    error.errors = errors.array().map(err => ({
-      field: err.param,
-      message: err.msg
-    }));
-    return next(error);
+    return res.status(400).json({
+      success: false,
+      errors: errors.array().map(error => ({
+        param: error.param,
+        msg: error.msg
+      }))
+    });
   }
   next();
 };
 
-// Register validation
-exports.validateRegister = [
-  body('name')
+// Kayıt doğrulama kuralları
+exports.registerValidation = [
+  check('name')
     .trim()
     .notEmpty().withMessage('İsim alanı zorunludur')
-    .isLength({ min: 2 }).withMessage('İsim en az 2 karakter olmalıdır')
-    .isLength({ max: 50 }).withMessage('İsim en fazla 50 karakter olabilir'),
+    .isLength({ min: 2, max: 50 }).withMessage('İsim 2-50 karakter arasında olmalıdır')
+    .matches(/^[a-zA-ZğüşıöçĞÜŞİÖÇ\s]+$/).withMessage('İsim sadece harflerden oluşmalıdır'),
   
-  body('email')
+  check('email')
     .trim()
-    .notEmpty().withMessage('Email alanı zorunludur')
-    .isEmail().withMessage('Geçerli bir email adresi giriniz')
+    .notEmpty().withMessage('E-posta alanı zorunludur')
+    .isEmail().withMessage('Geçerli bir e-posta adresi giriniz')
     .normalizeEmail(),
   
-  body('password')
+  check('password')
     .trim()
     .notEmpty().withMessage('Şifre alanı zorunludur')
-    .isLength({ min: 6 }).withMessage('Şifre en az 6 karakter olmalıdır'),
+    .isLength({ min: 6 }).withMessage('Şifre en az 6 karakter olmalıdır')
+    .matches(/[a-z]/).withMessage('Şifre en az bir küçük harf içermelidir')
+    .matches(/[A-Z]/).withMessage('Şifre en az bir büyük harf içermelidir')
+    .matches(/\d/).withMessage('Şifre en az bir rakam içermelidir'),
   
-  handleValidationErrors
+  check('confirmPassword')
+    .trim()
+    .notEmpty().withMessage('Şifre onay alanı zorunludur')
+    .custom((value, { req }) => {
+      if (value !== req.body.password) {
+        throw new Error('Şifreler eşleşmiyor');
+      }
+      return true;
+    })
 ];
 
-// Login validation
-exports.validateLogin = [
-  body('email')
+// Giriş doğrulama kuralları
+exports.loginValidation = [
+  check('email')
     .trim()
-    .notEmpty().withMessage('Email alanı zorunludur')
-    .isEmail().withMessage('Geçerli bir email adresi giriniz')
+    .notEmpty().withMessage('E-posta alanı zorunludur')
+    .isEmail().withMessage('Geçerli bir e-posta adresi giriniz')
     .normalizeEmail(),
   
-  body('password')
-    .trim()
-    .notEmpty().withMessage('Şifre alanı zorunludur'),
-  
-  handleValidationErrors
-];
-
-// Forgot password validation
-exports.validateForgotPassword = [
-  body('email')
-    .trim()
-    .notEmpty().withMessage('Email alanı zorunludur')
-    .isEmail().withMessage('Geçerli bir email adresi giriniz')
-    .normalizeEmail(),
-  
-  handleValidationErrors
-];
-
-// Reset password validation
-exports.validateResetPassword = [
-  param('token')
-    .trim()
-    .notEmpty().withMessage('Token gereklidir'),
-  
-  body('password')
+  check('password')
     .trim()
     .notEmpty().withMessage('Şifre alanı zorunludur')
-    .isLength({ min: 6 }).withMessage('Şifre en az 6 karakter olmalıdır'),
+];
+
+// Şifre sıfırlama talebi doğrulama kuralları
+exports.forgotPasswordValidation = [
+  check('email')
+    .trim()
+    .notEmpty().withMessage('E-posta alanı zorunludur')
+    .isEmail().withMessage('Geçerli bir e-posta adresi giriniz')
+    .normalizeEmail()
+];
+
+// Şifre sıfırlama doğrulama kuralları
+exports.resetPasswordValidation = [
+  check('token')
+    .trim()
+    .notEmpty().withMessage('Token alanı zorunludur'),
   
-  handleValidationErrors
-]; 
+  check('password')
+    .trim()
+    .notEmpty().withMessage('Şifre alanı zorunludur')
+    .isLength({ min: 6 }).withMessage('Şifre en az 6 karakter olmalıdır')
+    .matches(/[a-z]/).withMessage('Şifre en az bir küçük harf içermelidir')
+    .matches(/[A-Z]/).withMessage('Şifre en az bir büyük harf içermelidir')
+    .matches(/\d/).withMessage('Şifre en az bir rakam içermelidir'),
+  
+  check('confirmPassword')
+    .trim()
+    .notEmpty().withMessage('Şifre onay alanı zorunludur')
+    .custom((value, { req }) => {
+      if (value !== req.body.password) {
+        throw new Error('Şifreler eşleşmiyor');
+      }
+      return true;
+    })
+];
+
+// E-posta değiştirme doğrulama kuralları
+exports.updateEmailValidation = [
+  check('currentEmail')
+    .trim()
+    .notEmpty().withMessage('Mevcut e-posta alanı zorunludur')
+    .isEmail().withMessage('Geçerli bir e-posta adresi giriniz')
+    .normalizeEmail(),
+  
+  check('newEmail')
+    .trim()
+    .notEmpty().withMessage('Yeni e-posta alanı zorunludur')
+    .isEmail().withMessage('Geçerli bir e-posta adresi giriniz')
+    .normalizeEmail()
+    .custom((value, { req }) => {
+      if (value === req.body.currentEmail) {
+        throw new Error('Yeni e-posta mevcut e-posta ile aynı olamaz');
+      }
+      return true;
+    }),
+  
+  check('password')
+    .trim()
+    .notEmpty().withMessage('Şifre alanı zorunludur')
+];
+
+// Şifre değiştirme doğrulama kuralları
+exports.updatePasswordValidation = [
+  check('currentPassword')
+    .trim()
+    .notEmpty().withMessage('Mevcut şifre alanı zorunludur'),
+  
+  check('newPassword')
+    .trim()
+    .notEmpty().withMessage('Yeni şifre alanı zorunludur')
+    .isLength({ min: 6 }).withMessage('Şifre en az 6 karakter olmalıdır')
+    .matches(/[a-z]/).withMessage('Şifre en az bir küçük harf içermelidir')
+    .matches(/[A-Z]/).withMessage('Şifre en az bir büyük harf içermelidir')
+    .matches(/\d/).withMessage('Şifre en az bir rakam içermelidir')
+    .custom((value, { req }) => {
+      if (value === req.body.currentPassword) {
+        throw new Error('Yeni şifre mevcut şifre ile aynı olamaz');
+      }
+      return true;
+    }),
+  
+  check('confirmPassword')
+    .trim()
+    .notEmpty().withMessage('Şifre onay alanı zorunludur')
+    .custom((value, { req }) => {
+      if (value !== req.body.newPassword) {
+        throw new Error('Şifreler eşleşmiyor');
+      }
+      return true;
+    })
+];
