@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { supabase, supabaseAdmin } = require('../config/supabase');
+const { supabase, supabaseAdmin, useMockData } = require('../config/supabase');
 const logger = require('../utils/logger');
 
 // Middleware tanımlaması
@@ -74,9 +74,13 @@ router.get('/', async (req, res) => {
       return res.status(500).json({ status: 'error', message: error.message });
     }
     
+    // Mock veri modunu API cevabına ekle (frontend için bilgilendirici)
+    const mockInfo = useMockData ? { mockDataMode: true } : {};
+    
     // Sonuçları gönder
     return res.status(200).json({
       status: 'success',
+      ...mockInfo,
       data: {
         products: products || [],
         pagination: {
@@ -113,7 +117,14 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ status: 'error', message: 'Ürün bulunamadı', details: error.message });
     }
     
-    return res.status(200).json({ status: 'success', data: product });
+    // Mock veri modunu API cevabına ekle (frontend için bilgilendirici)
+    const mockInfo = useMockData ? { mockDataMode: true } : {};
+    
+    return res.status(200).json({ 
+      status: 'success', 
+      ...mockInfo,
+      data: product 
+    });
   } catch (error) {
     logger.error(`Tek ürün getirme hatası: ${error.message}`);
     return res.status(500).json({ 
@@ -145,7 +156,8 @@ router.post('/', authenticateToken, async (req, res) => {
           price, 
           stock: stock || 0, 
           is_active,
-          seller_id: req.user.id
+          seller_id: req.user.id,
+          created_at: new Date().toISOString()
         }
       ])
       .select()
@@ -156,8 +168,15 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(500).json({ status: 'error', message: error.message });
     }
     
+    // Mock veri modunu API cevabına ekle (frontend için bilgilendirici)
+    const mockInfo = useMockData ? { mockDataMode: true } : {};
+    
     // Ürün verileriyle birlikte başarı mesajı döndür
-    return res.status(201).json({ status: 'success', data: product });
+    return res.status(201).json({ 
+      status: 'success', 
+      ...mockInfo,
+      data: product 
+    });
   } catch (error) {
     logger.error(`Ürün ekleme hatası: ${error.message}`);
     return res.status(500).json({ 
@@ -195,7 +214,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         price, 
         stock, 
         is_active,
-        updated_at: new Date()
+        updated_at: new Date().toISOString()
       })
       .eq('id', id)
       .select()
@@ -206,7 +225,14 @@ router.put('/:id', authenticateToken, async (req, res) => {
       return res.status(500).json({ status: 'error', message: error.message });
     }
     
-    return res.status(200).json({ status: 'success', data: product });
+    // Mock veri modunu API cevabına ekle (frontend için bilgilendirici)
+    const mockInfo = useMockData ? { mockDataMode: true } : {};
+    
+    return res.status(200).json({ 
+      status: 'success', 
+      ...mockInfo,
+      data: product 
+    });
   } catch (error) {
     logger.error(`Ürün güncelleme hatası: ${error.message}`);
     return res.status(500).json({ 
@@ -245,7 +271,14 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       return res.status(500).json({ status: 'error', message: error.message });
     }
     
-    return res.status(200).json({ status: 'success', message: 'Ürün başarıyla silindi' });
+    // Mock veri modunu API cevabına ekle (frontend için bilgilendirici)
+    const mockInfo = useMockData ? { mockDataMode: true } : {};
+    
+    return res.status(200).json({ 
+      status: 'success', 
+      ...mockInfo,
+      message: 'Ürün başarıyla silindi' 
+    });
   } catch (error) {
     logger.error(`Ürün silme hatası: ${error.message}`);
     return res.status(500).json({ 
