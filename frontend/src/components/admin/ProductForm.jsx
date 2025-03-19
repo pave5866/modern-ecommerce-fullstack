@@ -3,7 +3,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Form, Input, Button, Select, InputNumber, Switch, Upload, message, Spin, Alert, Space, Divider, Card } from 'antd';
 import { UploadOutlined, PlusOutlined, LoadingOutlined } from '@ant-design/icons';
 import { getCategories } from '../../features/products/productSlice';
-import { toast } from 'react-toastify';
+// react-toastify yerine react-hot-toast kullanıyoruz
+import toast from 'react-hot-toast';
 import ImgCrop from 'antd-img-crop';
 
 const { TextArea } = Input;
