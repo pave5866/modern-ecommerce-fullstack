@@ -1,8 +1,9 @@
 # Dependencies
 node_modules/
-package-lock.json
+/.pnp
+.pnp.js
 
-# Environment variables
+# Environment
 .env
 .env.local
 .env.development.local
@@ -13,29 +14,37 @@ package-lock.json
 logs
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Directory for uploaded files
-uploads/*
-!uploads/.gitkeep
-
-# Coverage directory used by tools like istanbul
-coverage
-
-# Optional npm cache directory
-.npm
-
-# Optional eslint cache
-.eslintcache
+# Build / production
+/dist
+/build
+/out
+/deploy
 
 # Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
 .idea
-.vscode
-*.swp
-*.swo
-.DS_Store 
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Testing
+/coverage
+
+# Temp/Cache
+.temp
+.cache
+.parcel-cache
+
+# Misc
+.DS_Store
+thumbs.db 
