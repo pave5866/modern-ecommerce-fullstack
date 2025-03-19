@@ -1,19 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-// Her bileşeni ayrı import edelim
-import Form from 'antd/es/form';
-import Input from 'antd/es/input';
-import Button from 'antd/es/button';
-import Select from 'antd/es/select';
-import InputNumber from 'antd/es/input-number';
-import Switch from 'antd/es/switch';
-import Upload from 'antd/es/upload';
-import message from 'antd/es/message';
-import Spin from 'antd/es/spin';
-import Alert from 'antd/es/alert';
-import Space from 'antd/es/space';
-import Divider from 'antd/es/divider';
-import Card from 'antd/es/card';
+import { Form, Input, Button, Select, InputNumber, Switch, Upload, message, Spin, Alert, Space, Divider, Card } from 'antd';
 import { UploadOutlined, PlusOutlined, LoadingOutlined } from '@ant-design/icons';
 import { getCategories } from '../../features/products/productSlice';
 import { toast } from 'react-toastify';
