@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const logger = require('../utils/logger');
-const { User } = require('../models/user.model');
+const { supabase } = require('../config/supabase');
 
 // Kullanıcı kimliğini doğrulama
 exports.protect = async (req, res, next) => {
@@ -30,23 +30,23 @@ exports.protect = async (req, res, next) => {
     }
 
     try {
-      // Token'ı doğrula
+      // JWT token doğrulama (custom token için)
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Kullanıcıyı bul
-      const user = await User.findById(decoded.id).select('-password');
+      // Supabase ile kullanıcı bilgisini al
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', decoded.id)
+        .single();
 
-      // Kullanıcı yoksa (silinmiş olabilir) hata döndür
-      if (!user) {
+      if (error || !user) {
         logger.warn(`Geçersiz kullanıcı ID: ${decoded.id}`);
         return res.status(401).json({
-          success: false,
+          success: false, 
           message: 'Bu token ile ilişkili kullanıcı bulunamadı'
         });
       }
-
-      // MongoDB bağlantısı yoksa ve Supabase fallback kullanılıyorsa
-      // Burada alternatif bir doğrulama da yapılabilir
 
       // User bilgisini request nesnesine ekle
       req.user = user;
@@ -88,9 +88,8 @@ exports.authorize = (...roles) => {
 };
 
 // Kendi profilini güncelleme yetkisi
-exports.checkOwnership = (modelName) => async (req, res, next) => {
+exports.checkOwnership = (tableName) => async (req, res, next) => {
   try {
-    const Model = require(`../models/${modelName}.model`);
     const resourceId = req.params.id;
     
     // Kullanıcı admin ise her şeyi yapabilir
@@ -98,20 +97,25 @@ exports.checkOwnership = (modelName) => async (req, res, next) => {
       return next();
     }
     
-    const resource = await Model.findById(resourceId);
+    // Supabase'den kaynağı sorgula
+    const { data: resource, error } = await supabase
+      .from(tableName)
+      .select('*')
+      .eq('id', resourceId)
+      .single();
     
-    if (!resource) {
+    if (error || !resource) {
       return res.status(404).json({
         success: false,
         message: 'Kaynak bulunamadı'
       });
     }
     
-    // Kaynak sahibini kontrol et (userId veya user alanı olabilir)
-    const ownerId = resource.userId || resource.user;
+    // Kaynak sahibini kontrol et (user_id alanı kullanılıyor)
+    const ownerId = resource.user_id;
     
-    if (ownerId && ownerId.toString() !== req.user._id.toString()) {
-      logger.warn(`Yetkisiz erişim denemesi: ${req.user.email} başka birinin ${modelName} kaynağına erişmeye çalıştı`);
+    if (ownerId && ownerId !== req.user.id) {
+      logger.warn(`Yetkisiz erişim denemesi: ${req.user.email} başka birinin ${tableName} kaynağına erişmeye çalıştı`);
       return res.status(403).json({
         success: false,
         message: 'Bu kaynağı değiştirmek için yetkiniz yok'
