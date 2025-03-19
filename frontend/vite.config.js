@@ -12,37 +12,40 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    // Yarı boş modüllere izin ver
     commonjsOptions: {
       transformMixedEsModules: true,
     },
-    // Bağımlılık hatalarını görmezden gel
     chunkSizeWarningLimit: 1600,
     rollupOptions: {
-      // Kritik modülleri external olarak işaretleme
-      external: [],
+      // Sorunlu modülleri dışarıda bırak
+      external: [
+        'react', 
+        'react-dom', 
+        'react-router-dom',
+        'react-redux',
+        '@reduxjs/toolkit',
+        'redux-persist',
+        'antd',
+        '@ant-design/icons'
+      ],
       output: {
         // Global değişkenleri tanımla
         globals: {
-          react: 'React',
+          'react': 'React',
           'react-dom': 'ReactDOM',
-          'react-redux': 'ReactRedux'
+          'react-redux': 'ReactRedux',
+          '@reduxjs/toolkit': 'RTK',
+          'redux-persist': 'ReduxPersist',
+          'antd': 'antd',
+          '@ant-design/icons': 'icons',
+          'react-router-dom': 'ReactRouterDOM'
         },
-        // Paketleri manuel olarak böl
-        manualChunks: {
-          vendor: [
-            'react', 
-            'react-dom', 
-            'react-router-dom',
-            'react-redux',
-            '@reduxjs/toolkit',
-            'redux-persist',
-            'axios'
-          ],
-          ui: ['antd', '@ant-design/icons'],
-        }
-      },
-    },
+        // HTML için gerekli script eklemeleri
+        inlineDynamicImports: false,
+        // Script yükleme sırası
+        manualChunks: undefined
+      }
+    }
   },
   server: {
     port: 5173,
