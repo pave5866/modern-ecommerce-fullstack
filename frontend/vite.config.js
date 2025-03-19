@@ -19,7 +19,13 @@ export default defineConfig({
     cssCodeSplit: true,
     // Bundle'ı basitleştir
     rollupOptions: {
+      // Sorun çıkaran modülleri external olarak tanımla
+      external: ['react-toastify'],
       output: {
+        // Global değişkenleri tanımla
+        globals: {
+          'react-toastify': 'ReactToastify',
+        },
         // Çıktı formatını düzenle
         entryFileNames: 'assets/[name].[hash].js',
         chunkFileNames: 'assets/[name].[hash].js',
