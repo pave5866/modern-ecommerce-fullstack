@@ -1,5 +1,5 @@
 // CommonJS modülü olarak çalıştır
-import { readFileSync, writeFileSync } from 'fs';
+const fs = require('fs');
 
 try {
   console.log('Toast importlarını düzeltme işlemi başlıyor...');
@@ -9,7 +9,7 @@ try {
   
   // Dosya içeriğini oku
   console.log(`${filePath} dosyası okunuyor...`);
-  let content = readFileSync(filePath, 'utf8');
+  let content = fs.readFileSync(filePath, 'utf8');
   
   // React-toastify importunu bul ve değiştir
   if (content.includes('react-toastify')) {
@@ -17,7 +17,7 @@ try {
     content = content.replace(/from ['"]react-toastify['"]/g, "from 'react-hot-toast'");
     
     // Değiştirilmiş içeriği yaz
-    writeFileSync(filePath, content);
+    fs.writeFileSync(filePath, content);
     console.log('Dosya başarıyla güncellendi!');
   } else {
     console.log('Dosyada react-toastify importu bulunamadı, değişiklik yapılmadı.');
