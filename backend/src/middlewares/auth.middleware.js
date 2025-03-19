@@ -1,130 +1,165 @@
 const jwt = require('jsonwebtoken');
-const logger = require('../utils/logger');
+const { promisify } = require('util');
 const { supabase } = require('../config/supabase');
+const logger = require('../utils/logger');
 
-// Kullanıcı kimliğini doğrulama
+// JWT tokenı doğrula ve kullanıcıya eriş
 exports.protect = async (req, res, next) => {
   try {
+    // 1) Token var mı kontrol et
     let token;
-
-    // Authorization başlığını kontrol et
     if (
       req.headers.authorization &&
       req.headers.authorization.startsWith('Bearer')
     ) {
-      // Bearer token formatından token değerini ayıkla
       token = req.headers.authorization.split(' ')[1];
-    } 
-    // Cookie'den token kontrolü
-    else if (req.cookies && req.cookies.token) {
-      token = req.cookies.token;
+    } else if (req.cookies && req.cookies.jwt) {
+      token = req.cookies.jwt;
     }
 
-    // Token yoksa erişim engelle
     if (!token) {
-      logger.warn('Yetkisiz erişim denemesi: Token yok');
+      logger.warn('Oturum açılmamış: Token bulunamadı', { ip: req.ip, path: req.originalUrl });
       return res.status(401).json({
-        success: false,
-        message: 'Bu kaynağa erişmek için giriş yapmanız gerekiyor'
+        status: 'error',
+        message: 'Bu işlemi gerçekleştirmek için lütfen giriş yapın'
       });
     }
 
+    // 2) Token doğrulama
+    let decoded;
     try {
-      // JWT token doğrulama (custom token için)
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
+    } catch (err) {
+      logger.warn('Geçersiz token', { error: err.message, ip: req.ip, path: req.originalUrl });
+      return res.status(401).json({
+        status: 'error',
+        message: 'Geçersiz token. Lütfen tekrar giriş yapın'
+      });
+    }
 
-      // Supabase ile kullanıcı bilgisini al
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', decoded.id)
-        .single();
+    // 3) Kullanıcı hala var mı kontrol et
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', decoded.id)
+      .single();
 
-      if (error || !user) {
-        logger.warn(`Geçersiz kullanıcı ID: ${decoded.id}`);
+    if (error || !user) {
+      logger.warn('Token geçerli ancak kullanıcı bulunamadı', { userId: decoded.id, ip: req.ip });
+      return res.status(401).json({
+        status: 'error',
+        message: 'Bu tokena sahip kullanıcı artık mevcut değil'
+      });
+    }
+
+    // 4) Kullanıcı şifresini değiştirmişse token geçerli mi kontrol et
+    if (user.password_changed_at) {
+      const passwordChangedTimestamp = parseInt(
+        new Date(user.password_changed_at).getTime() / 1000,
+        10
+      );
+
+      if (decoded.iat < passwordChangedTimestamp) {
+        logger.warn('Şifre değişikliğinden sonra eski token kullanımı', { userId: user.id, ip: req.ip });
         return res.status(401).json({
-          success: false, 
-          message: 'Bu token ile ilişkili kullanıcı bulunamadı'
+          status: 'error',
+          message: 'Kullanıcı yakın zamanda şifresini değiştirdi. Lütfen tekrar giriş yapın'
         });
       }
-
-      // User bilgisini request nesnesine ekle
-      req.user = user;
-      next();
-    } catch (error) {
-      logger.error(`Token doğrulama hatası: ${error.message}`);
-      return res.status(401).json({
-        success: false,
-        message: 'Geçersiz token, lütfen tekrar giriş yapın'
-      });
     }
+
+    // Kullanıcıyı request nesnesine ekle
+    req.user = user;
+    next();
   } catch (error) {
-    logger.error(`Koruma middleware hatası: ${error.message}`);
+    logger.error('Auth middleware hatası:', { error: error.message });
     next(error);
   }
 };
 
-// Admin yetkisini kontrol etme
-exports.authorize = (...roles) => {
+// Sadece belirli rollere izin ver
+exports.restrictTo = (...roles) => {
   return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Yetkilendirme yapılamadı, lütfen önce giriş yapın'
+    // protect middleware'i önce çalıştığı için req.user vardır
+    if (!req.user || !roles.includes(req.user.role)) {
+      logger.warn('Yetkisiz erişim girişimi', { 
+        userId: req.user ? req.user.id : 'Bilinmiyor', 
+        userRole: req.user ? req.user.role : 'Bilinmiyor',
+        requiredRoles: roles.join(','),
+        ip: req.ip,
+        path: req.originalUrl
       });
-    }
-
-    // Kullanıcının rolünü kontrol et
-    if (!roles.includes(req.user.role)) {
-      logger.warn(`Yetkisiz erişim denemesi: ${req.user.email} (${req.user.role}) ${req.originalUrl} adresine erişmeye çalıştı`);
+      
       return res.status(403).json({
-        success: false,
+        status: 'error',
         message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
       });
     }
-
     next();
   };
 };
 
-// Kendi profilini güncelleme yetkisi
-exports.checkOwnership = (tableName) => async (req, res, next) => {
+// İsteğe bağlı kullanıcı bilgilerini kontrol et
+exports.isLoggedIn = async (req, res, next) => {
   try {
-    const resourceId = req.params.id;
-    
-    // Kullanıcı admin ise her şeyi yapabilir
-    if (req.user.role === 'admin') {
-      return next();
+    // 1) Token var mı kontrol et
+    let token;
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith('Bearer')
+    ) {
+      token = req.headers.authorization.split(' ')[1];
+    } else if (req.cookies && req.cookies.jwt) {
+      token = req.cookies.jwt;
     }
-    
-    // Supabase'den kaynağı sorgula
-    const { data: resource, error } = await supabase
-      .from(tableName)
+
+    if (!token) {
+      return next(); // Token yoksa devam et, kullanıcı giriş yapmamış
+    }
+
+    // 2) Token doğrulama
+    let decoded;
+    try {
+      decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
+    } catch (err) {
+      return next(); // Geçersiz token, devam et
+    }
+
+    // 3) Kullanıcı hala var mı kontrol et
+    const { data: user, error } = await supabase
+      .from('users')
       .select('*')
-      .eq('id', resourceId)
+      .eq('id', decoded.id)
       .single();
-    
-    if (error || !resource) {
-      return res.status(404).json({
-        success: false,
-        message: 'Kaynak bulunamadı'
-      });
+
+    if (error || !user) {
+      return next(); // Kullanıcı bulunamadı, devam et
     }
-    
-    // Kaynak sahibini kontrol et (user_id alanı kullanılıyor)
-    const ownerId = resource.user_id;
-    
-    if (ownerId && ownerId !== req.user.id) {
-      logger.warn(`Yetkisiz erişim denemesi: ${req.user.email} başka birinin ${tableName} kaynağına erişmeye çalıştı`);
-      return res.status(403).json({
-        success: false,
-        message: 'Bu kaynağı değiştirmek için yetkiniz yok'
-      });
+
+    // 4) Kullanıcı şifresini değiştirmişse token geçerli mi kontrol et
+    if (user.password_changed_at) {
+      const passwordChangedTimestamp = parseInt(
+        new Date(user.password_changed_at).getTime() / 1000,
+        10
+      );
+
+      if (decoded.iat < passwordChangedTimestamp) {
+        return next(); // Şifre değişmiş, devam et
+      }
     }
-    
+
+    // Kullanıcıyı request nesnesine ekle
+    req.user = user;
     next();
   } catch (error) {
-    logger.error(`Sahiplik kontrolü hatası: ${error.message}`);
-    next(error);
+    logger.error('isLoggedIn middleware hatası:', { error: error.message });
+    next();
   }
+};
+
+// JWT token oluştur
+exports.createToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRES_IN || '30d'
+  });
 };
