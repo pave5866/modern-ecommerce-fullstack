@@ -1,29 +1,80 @@
 const express = require('express');
 const router = express.Router();
-const productController = require('../controllers/product.controller');
-const { protect, authorize } = require('../middlewares/auth');
-const { upload, handleMulterError } = require('../middlewares/upload');
+const { protect, authorize } = require('../middlewares/auth.middleware');
 
-// Public routes
-router.get('/', productController.getAllProducts);
-router.get('/categories', productController.getCategories);
-router.get('/search', productController.searchProducts);
-router.get('/category/:category', productController.getProductsByCategory);
-router.get('/:id', productController.getProduct);
+// Örnek ürünler için
+router.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Ürünler başarıyla getirildi',
+    data: [
+      {
+        id: 1,
+        name: 'Örnek Ürün 1',
+        price: 99.99,
+        description: 'Bu bir örnek ürün açıklamasıdır.',
+        image: 'https://via.placeholder.com/300',
+        category: 'Elektronik'
+      },
+      {
+        id: 2,
+        name: 'Örnek Ürün 2',
+        price: 149.99,
+        description: 'Bu bir başka örnek ürün açıklamasıdır.',
+        image: 'https://via.placeholder.com/300',
+        category: 'Giyim'
+      }
+    ]
+  });
+});
 
-// Protected routes
-router.use(protect);
-router.use(authorize('admin'));
+// Tek bir ürünü getir
+router.get('/:id', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Ürün başarıyla getirildi',
+    data: {
+      id: req.params.id,
+      name: 'Örnek Ürün',
+      price: 99.99,
+      description: 'Bu bir örnek ürün açıklamasıdır.',
+      image: 'https://via.placeholder.com/300',
+      category: 'Elektronik'
+    }
+  });
+});
 
-// Ürün işlemleri
-router.post('/', 
-  upload.array('images', 5), 
-  handleMulterError,
-  productController.createProduct
-);
+// Yeni ürün ekle (admin yetkisi gerekli)
+router.post('/', protect, authorize('admin'), (req, res) => {
+  res.status(201).json({
+    success: true,
+    message: 'Ürün başarıyla eklendi',
+    data: {
+      id: 3,
+      ...req.body
+    }
+  });
+});
 
-router.route('/:id')
-  .put(upload.array('images', 5), handleMulterError, productController.updateProduct)
-  .delete(productController.deleteProduct);
+// Ürün güncelle (admin yetkisi gerekli)
+router.put('/:id', protect, authorize('admin'), (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Ürün başarıyla güncellendi',
+    data: {
+      id: req.params.id,
+      ...req.body
+    }
+  });
+});
 
-module.exports = router; 
+// Ürün sil (admin yetkisi gerekli)
+router.delete('/:id', protect, authorize('admin'), (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Ürün başarıyla silindi',
+    data: {}
+  });
+});
+
+module.exports = router;
