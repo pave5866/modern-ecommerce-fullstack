@@ -1,11 +1,13 @@
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Button, Loading, ProductCard } from '../components/ui'
+import { useState } from 'react'
+import { FiShoppingCart } from 'react-icons/fi'
 import { productAPI } from '../services/api'
 import { useCartStore, useAuthStore } from '../store'
-import { useState } from 'react'
 import { showToast } from '../utils'
 import logger from '../utils/logger'
+import Button from '../components/ui/Button'
+import Loading from '../components/ui/Loading'
 
 export default function ProductDetail() {
   const { id } = useParams()
@@ -18,21 +20,21 @@ export default function ProductDetail() {
     queryKey: ['product', id],
     queryFn: async () => {
       try {
-        console.log('Ürün detayı getiriliyor, id:', id);
+        logger.info('Ürün detayı getiriliyor', { id });
         const response = await productAPI.getById(id);
         
         if (!response.success || !response.product) {
           throw new Error(response.error || 'Ürün bulunamadı');
         }
         
-        console.log('Ürün detayı başarıyla getirildi:', {
+        logger.info('Ürün detayı başarıyla getirildi', {
           id: response.product._id,
           name: response.product.name
         });
         
         return response.product;
       } catch (error) {
-        logger.error('Ürün getirme hatası:', { error: error.message, productId: id })
+        logger.error('Ürün getirme hatası', { error: error.message, productId: id })
         throw error
       }
     }
@@ -46,7 +48,7 @@ export default function ProductDetail() {
     queryKey: ['products', product?.category],
     queryFn: async () => {
       try {
-        logger.info('Benzer ürünler getiriliyor:', { category: product?.category });
+        logger.info('Benzer ürünler getiriliyor', { category: product?.category });
         
         const response = await productAPI.getByCategory(product.category);
         
@@ -59,10 +61,10 @@ export default function ProductDetail() {
           .filter(p => p._id !== product._id)
           .slice(0, 4);
         
-        logger.info('Filtrelenmiş benzer ürünler:', { count: filteredProducts.length });
+        logger.info('Filtrelenmiş benzer ürünler', { count: filteredProducts.length });
         return filteredProducts;
       } catch (error) {
-        logger.error('Benzer ürünleri getirme hatası:', { 
+        logger.error('Benzer ürünleri getirme hatası', { 
           error: error.message, 
           category: product?.category,
           stack: error.stack
@@ -183,6 +185,7 @@ export default function ProductDetail() {
               className="w-full"
               onClick={handleAddToCart}
             >
+              <FiShoppingCart className="inline mr-2" />
               Sepete Ekle
             </Button>
           </div>
@@ -192,7 +195,7 @@ export default function ProductDetail() {
               Kategori
             </h2>
             <div className="mt-2">
-              <span className="inline-flex items-center rounded-full bg-primary-100 px-2.5 py-0.5 text-xs font-medium text-primary-800">
+              <span className="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:text-blue-300">
                 {product?.category}
               </span>
             </div>
@@ -225,8 +228,33 @@ export default function ProductDetail() {
         <div className="mt-16">
           <h2 className="text-2xl font-bold mb-8">Benzer Ürünler</h2>
           <div className="grid grid-cols-1 gap-y-10 gap-x-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {similarProducts.map((product) => (
-              <ProductCard key={product._id} product={product} />
+            {similarProducts.map((similarProduct) => (
+              <div key={similarProduct._id} className="product-card bg-white dark:bg-gray-800 overflow-hidden rounded-xl">
+                <div className="relative aspect-square overflow-hidden bg-gray-200 dark:bg-gray-700">
+                  {similarProduct.images && similarProduct.images.length > 0 ? (
+                    <img
+                      src={similarProduct.images[0]}
+                      alt={similarProduct.name}
+                      className="h-full w-full object-cover object-center"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center bg-gray-100 dark:bg-gray-700">
+                      <span className="text-gray-400 dark:text-gray-500">Resim yok</span>
+                    </div>
+                  )}
+                </div>
+                <div className="p-4">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1 truncate">
+                    {similarProduct.name}
+                  </h3>
+                  <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                    {similarProduct.price?.toLocaleString('tr-TR', {
+                      style: 'currency',
+                      currency: 'TRY'
+                    })}
+                  </p>
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -240,4 +268,4 @@ export default function ProductDetail() {
       )}
     </div>
   )
-} 
+}
