@@ -1,13 +1,5 @@
-export { default as Button } from './Button'
-export { default as Loading } from './Loading'
-export { LoadingPage, LoadingOverlay } from './Loading'
-export { default as Modal } from './Modal'
-export { default as AddressForm } from './AddressForm'
-export { Input } from './Input'
-export { ProductCard } from './ProductCard'
-export { Slider } from './Slider'
-export { SearchInput } from './SearchInput'
-export { PageTransition } from './PageTransition'
-export { BackToTop } from './BackToTop'
-export { Breadcrumb } from './Breadcrumb'
-export { CategoryCard } from './CategoryCard' 
+import Button from './Button';
+import Loading from './Loading';
+import ProductCard from './ProductCard';
+
+export { Button, Loading, ProductCard };
