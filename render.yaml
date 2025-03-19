@@ -45,7 +45,7 @@ services:
     runtime: static
     rootDir: frontend
     plan: free
-    buildCommand: "npm run build:render"
+    buildCommand: "sed -i 's/from \"react-toastify\"/from \"react-hot-toast\"/' src/utils/toast.js && npm run build:render"
     staticPublishPath: ./dist
     envVars:
       - key: VITE_SUPABASE_URL
