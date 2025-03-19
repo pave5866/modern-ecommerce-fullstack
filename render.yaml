@@ -1,0 +1,75 @@
+# Render.com için ana konfigürasyon dosyası
+services:
+  # Backend servisi
+  - type: web
+    name: modernshop-backend
+    runtime: node
+    rootDir: backend
+    plan: free
+    region: frankfurt
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 90d
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        sync: false
+      - key: EMAIL_USERNAME
+        sync: false
+      - key: EMAIL_PASSWORD
+        sync: false
+      - key: EMAIL_FROM_NAME
+        sync: false
+      - key: EMAIL_FROM_ADDRESS
+        sync: false
+    autoDeploy: true
+
+  # Frontend servisi - Static site
+  - type: web
+    name: modernshop-frontend
+    runtime: static
+    rootDir: frontend
+    plan: free
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: VITE_API_URL
+        fromService:
+          name: modernshop-backend
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+        value: https://modernshop-backend.onrender.com
+        # Bu URL backend'in production URL'i ile değiştirilmeli
+      - key: VITE_ENABLE_DARK_MODE
+        value: true
+      - key: VITE_ENABLE_ANIMATIONS
+        value: true
+      - key: VITE_APP_NAME
+        value: ModernShop
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache 
