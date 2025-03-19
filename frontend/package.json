@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:render": "npm install --production=false && vite build --mode production",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
@@ -32,7 +33,6 @@
     "react-lazyload": "^3.2.0",
     "react-redux": "^9.0.4",
     "react-router-dom": "^6.21.3",
-    "react-toastify": "^9.1.3",
     "redux-persist": "^6.0.0",
     "redux-thunk": "^3.1.0",
     "tailwind-merge": "^2.2.0",
