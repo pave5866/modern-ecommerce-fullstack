@@ -1,23 +1,33 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');
-const { validateRegister, validateLogin, validateForgotPassword, validateResetPassword } = require('../middlewares/validators/auth.validator');
-const { protect } = require('../middlewares/auth');
+const { protect } = require('../middlewares/auth.middleware');
+const {
+  registerValidation,
+  loginValidation,
+  forgotPasswordValidation,
+  resetPasswordValidation,
+  updateEmailValidation,
+  updatePasswordValidation,
+  validateRequest
+} = require('../middlewares/validators/auth.validator');
 
-router.post('/register', validateRegister, authController.register);
-router.post('/login', validateLogin, authController.login);
-router.get('/login', (req, res) => {
-  res.status(405).json({ 
-    success: false, 
-    message: 'Method Not Allowed. Please use POST for login.' 
-  });
-});
-router.post('/forgot-password', validateForgotPassword, authController.forgotPassword);
-router.post('/reset-password/:token', validateResetPassword, authController.resetPassword);
-router.post('/logout', authController.logout);
+// Kimlik doğrulama rotaları
+router.post('/register', registerValidation, validateRequest, authController.register);
+router.post('/login', loginValidation, validateRequest, authController.login);
+router.get('/logout', authController.logout);
+router.get('/me', protect, authController.getMe);
+router.get('/refresh-token', authController.refreshToken);
 
-// Profil işlemleri
-router.put('/profile', protect, authController.updateProfile);
-router.put('/profile/password', protect, authController.updatePassword);
+// Şifre işlemleri
+router.post('/forgot-password', forgotPasswordValidation, validateRequest, authController.forgotPassword);
+router.post('/reset-password', resetPasswordValidation, validateRequest, authController.resetPassword);
+router.patch('/update-password', protect, updatePasswordValidation, validateRequest, authController.updatePassword);
+
+// E-posta değiştirme
+router.patch('/update-email', protect, updateEmailValidation, validateRequest, authController.updateEmail);
+
+// Kullanıcı hesabı yönetimi
+router.delete('/delete-account', protect, authController.deleteAccount);
 
 module.exports = router;
