@@ -1,4 +1,5 @@
-const { User } = require('../models/user.model');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const logger = require('../utils/logger');
 const { supabase } = require('../config/supabase');
 
@@ -7,70 +8,69 @@ exports.register = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
 
-    // MongoDB'ye bağlı değilsek Supabase ile çalışalım
-    const { connectDB, checkConnection } = require('../db/mongodb');
-    await connectDB();
-    
-    if (!checkConnection()) {
-      // MongoDB bağlantısı yoksa Supabase kullan
-      try {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              name,
-              role: 'user'
-            }
-          }
-        });
-
-        if (error) {
-          logger.error(`Supabase kayıt hatası: ${error.message}`);
-          return res.status(400).json({
-            success: false,
-            message: error.message
-          });
+    // Supabase Auth ile kayıt
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+          role: 'user'
         }
-
-        logger.info(`Yeni kullanıcı Supabase ile oluşturuldu: ${email}`);
-        return res.status(201).json({
-          success: true,
-          message: 'Kullanıcı kaydı başarılı',
-          data: {
-            id: data.user.id,
-            email: data.user.email,
-            name: data.user.user_metadata.name
-          }
-        });
-      } catch (supabaseError) {
-        logger.error(`Supabase kayıt işleminde hata: ${supabaseError.message}`);
-        return res.status(500).json({
-          success: false,
-          message: 'Kayıt işlemi başarısız oldu'
-        });
       }
-    }
+    });
 
-    // E-posta adresi ile kullanıcı kontrolü
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      logger.warn(`Kayıt denemesi - E-posta adresi zaten kullanımda: ${email}`);
+    if (authError) {
+      logger.error(`Supabase kayıt hatası: ${authError.message}`);
       return res.status(400).json({
         success: false,
-        message: 'Bu e-posta adresi ile kayıtlı bir kullanıcı zaten var'
+        message: authError.message
       });
     }
 
-    // Yeni kullanıcı oluştur
-    const user = await User.create({
-      name,
-      email,
-      password
-    });
+    // Supabase'e kullanıcı profili ekle
+    const { data: profileData, error: profileError } = await supabase
+      .from('users')
+      .insert([
+        { 
+          id: authData.user.id,
+          name, 
+          email,
+          role: 'user',
+          created_at: new Date().toISOString()
+        }
+      ]);
 
-    logger.info(`Yeni kullanıcı oluşturuldu: ${user.email} (ID: ${user._id})`);
-    sendTokenResponse(user, 201, res);
+    if (profileError) {
+      logger.error(`Supabase profil oluşturma hatası: ${profileError.message}`);
+      // Profil oluşturulamadı, kayıt olan kullanıcıyı sil
+      await supabase.auth.admin.deleteUser(authData.user.id);
+      
+      return res.status(500).json({
+        success: false,
+        message: 'Kullanıcı profili oluşturulamadı'
+      });
+    }
+
+    logger.info(`Yeni kullanıcı oluşturuldu: ${email} (ID: ${authData.user.id})`);
+    
+    // JWT token oluştur
+    const token = jwt.sign(
+      { id: authData.user.id, email: authData.user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRE || '30d' }
+    );
+
+    res.status(201).json({
+      success: true,
+      token,
+      user: {
+        id: authData.user.id,
+        name,
+        email,
+        role: 'user'
+      }
+    });
   } catch (error) {
     logger.error(`Kayıt işleminde hata: ${error.message}`);
     next(error);
@@ -82,49 +82,6 @@ exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    // MongoDB'ye bağlı değilsek Supabase ile çalışalım
-    const { connectDB, checkConnection } = require('../db/mongodb');
-    await connectDB();
-    
-    if (!checkConnection()) {
-      // MongoDB bağlantısı yoksa Supabase kullan
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
-
-        if (error) {
-          logger.error(`Supabase giriş hatası: ${error.message}`);
-          return res.status(401).json({
-            success: false,
-            message: 'Geçersiz giriş bilgileri'
-          });
-        }
-
-        logger.info(`Kullanıcı Supabase ile giriş yaptı: ${email}`);
-        return res.status(200).json({
-          success: true,
-          message: 'Giriş başarılı',
-          data: {
-            token: data.session.access_token,
-            user: {
-              id: data.user.id,
-              email: data.user.email,
-              name: data.user.user_metadata.name,
-              role: data.user.user_metadata.role || 'user'
-            }
-          }
-        });
-      } catch (supabaseError) {
-        logger.error(`Supabase giriş işleminde hata: ${supabaseError.message}`);
-        return res.status(500).json({
-          success: false,
-          message: 'Giriş işlemi başarısız oldu'
-        });
-      }
-    }
-
     // E-posta ve şifre kontrolü
     if (!email || !password) {
       return res.status(400).json({
@@ -133,34 +90,60 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // Kullanıcıyı e-posta ile bul ve şifreyi dahil et
-    const user = await User.findOne({ email }).select('+password');
+    // Supabase Auth ile giriş
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
 
-    // Kullanıcı bulunamadıysa
-    if (!user) {
-      logger.warn(`Başarısız giriş denemesi - Kullanıcı bulunamadı: ${email}`);
+    if (error) {
+      logger.warn(`Başarısız giriş denemesi: ${email}, hata: ${error.message}`);
       return res.status(401).json({
         success: false,
         message: 'Geçersiz giriş bilgileri'
       });
     }
 
-    // Şifre eşleşiyor mu?
-    const isMatch = await user.matchPassword(password);
-    if (!isMatch) {
-      logger.warn(`Başarısız giriş denemesi - Yanlış şifre: ${email}`);
-      return res.status(401).json({
+    // Kullanıcı profil bilgilerini getir
+    const { data: user, error: profileError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
+
+    if (profileError) {
+      logger.error(`Kullanıcı profili getirme hatası: ${profileError.message}`);
+      return res.status(500).json({
         success: false,
-        message: 'Geçersiz giriş bilgileri'
+        message: 'Kullanıcı profili alınamadı'
       });
     }
 
     // Son giriş tarihini güncelle
-    user.lastLogin = Date.now();
-    await user.save();
+    await supabase
+      .from('users')
+      .update({ last_login: new Date().toISOString() })
+      .eq('id', data.user.id);
 
-    logger.info(`Kullanıcı giriş yaptı: ${user.email} (ID: ${user._id})`);
-    sendTokenResponse(user, 200, res);
+    logger.info(`Kullanıcı giriş yaptı: ${email} (ID: ${data.user.id})`);
+
+    // JWT token oluştur
+    const token = jwt.sign(
+      { id: data.user.id, email: data.user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRE || '30d' }
+    );
+
+    res.status(200).json({
+      success: true,
+      token,
+      user: {
+        id: data.user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
+    });
   } catch (error) {
     logger.error(`Giriş işleminde hata: ${error.message}`);
     next(error);
@@ -168,18 +151,34 @@ exports.login = async (req, res, next) => {
 };
 
 // Kullanıcı çıkışı
-exports.logout = (req, res) => {
-  // Cookie'yi temizle
-  res.cookie('token', 'none', {
-    expires: new Date(Date.now() + 10 * 1000),
-    httpOnly: true
-  });
+exports.logout = async (req, res, next) => {
+  try {
+    // Supabase oturumunu sonlandır
+    const { error } = await supabase.auth.signOut();
+    
+    if (error) {
+      logger.error(`Çıkış hatası: ${error.message}`);
+      return res.status(500).json({
+        success: false,
+        message: 'Çıkış işlemi başarısız oldu'
+      });
+    }
 
-  logger.info('Kullanıcı çıkış yaptı');
-  res.status(200).json({
-    success: true,
-    message: 'Çıkış başarılı'
-  });
+    // Cookie'yi temizle
+    res.cookie('token', 'none', {
+      expires: new Date(Date.now() + 10 * 1000),
+      httpOnly: true
+    });
+
+    logger.info('Kullanıcı çıkış yaptı');
+    res.status(200).json({
+      success: true,
+      message: 'Çıkış başarılı'
+    });
+  } catch (error) {
+    logger.error(`Çıkış işleminde hata: ${error.message}`);
+    next(error);
+  }
 };
 
 // Mevcut kullanıcı bilgisini getir
@@ -199,94 +198,204 @@ exports.getMe = async (req, res, next) => {
 
 // Token yenileme
 exports.refreshToken = async (req, res, next) => {
-  // Bu fonksiyon için token yenileme mantığını ekleyin
-  res.status(200).json({
-    success: true,
-    message: 'Token yenilendi',
-    data: {}
-  });
+  try {
+    // Mevcut oturumu kontrol et
+    const { data, error } = await supabase.auth.getSession();
+
+    if (error || !data.session) {
+      return res.status(401).json({
+        success: false,
+        message: 'Geçerli oturum bulunamadı'
+      });
+    }
+
+    // Yeni JWT token oluştur
+    const token = jwt.sign(
+      { 
+        id: data.session.user.id, 
+        email: data.session.user.email,
+        role: data.session.user.user_metadata.role || 'user'
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRE || '30d' }
+    );
+
+    res.status(200).json({
+      success: true,
+      token,
+      user: {
+        id: data.session.user.id,
+        email: data.session.user.email,
+        name: data.session.user.user_metadata.name,
+        role: data.session.user.user_metadata.role || 'user'
+      }
+    });
+  } catch (error) {
+    logger.error(`Token yenileme hatası: ${error.message}`);
+    next(error);
+  }
 };
 
 // Şifre sıfırlama isteği
 exports.forgotPassword = async (req, res, next) => {
-  // Bu fonksiyon için şifre sıfırlama mantığını ekleyin
-  res.status(200).json({
-    success: true,
-    message: 'Şifre sıfırlama talimatları e-posta adresinize gönderildi',
-    data: {}
-  });
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Lütfen e-posta adresinizi giriniz'
+      });
+    }
+
+    // Supabase ile şifre sıfırlama e-postası gönder
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: process.env.PASSWORD_RESET_URL
+    });
+
+    if (error) {
+      logger.error(`Şifre sıfırlama hatası: ${error.message}`);
+      // Kullanıcıya hata vermemek için başarılı gibi göster
+    }
+
+    logger.info(`Şifre sıfırlama e-postası gönderildi: ${email}`);
+    res.status(200).json({
+      success: true,
+      message: 'Şifre sıfırlama talimatları e-posta adresinize gönderildi (eğer hesap mevcutsa)'
+    });
+  } catch (error) {
+    logger.error(`Şifre sıfırlama işleminde hata: ${error.message}`);
+    next(error);
+  }
 };
 
 // Şifre sıfırlama
 exports.resetPassword = async (req, res, next) => {
-  // Bu fonksiyon için şifre sıfırlama mantığını ekleyin
-  res.status(200).json({
-    success: true,
-    message: 'Şifreniz başarıyla sıfırlandı',
-    data: {}
-  });
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Geçersiz şifre sıfırlama isteği'
+      });
+    }
+
+    // Supabase ile şifre güncelle
+    const { error } = await supabase.auth.updateUser({
+      password
+    });
+
+    if (error) {
+      logger.error(`Şifre sıfırlama hatası: ${error.message}`);
+      return res.status(400).json({
+        success: false,
+        message: 'Şifre sıfırlama başarısız oldu'
+      });
+    }
+
+    logger.info('Şifre başarıyla sıfırlandı');
+    res.status(200).json({
+      success: true,
+      message: 'Şifreniz başarıyla sıfırlandı'
+    });
+  } catch (error) {
+    logger.error(`Şifre sıfırlama işleminde hata: ${error.message}`);
+    next(error);
+  }
 };
 
 // Şifre güncelleme
 exports.updatePassword = async (req, res, next) => {
-  // Bu fonksiyon için şifre güncelleme mantığını ekleyin
-  res.status(200).json({
-    success: true,
-    message: 'Şifreniz başarıyla güncellendi',
-    data: {}
-  });
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    // Şifre güncelleme
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+
+    if (error) {
+      logger.error(`Şifre güncelleme hatası: ${error.message}`);
+      return res.status(400).json({
+        success: false,
+        message: 'Şifre güncelleme başarısız oldu'
+      });
+    }
+
+    logger.info(`Kullanıcı şifresini güncelledi: ${req.user.email}`);
+    res.status(200).json({
+      success: true,
+      message: 'Şifreniz başarıyla güncellendi'
+    });
+  } catch (error) {
+    logger.error(`Şifre güncelleme işleminde hata: ${error.message}`);
+    next(error);
+  }
 };
 
 // E-posta güncelleme
 exports.updateEmail = async (req, res, next) => {
-  // Bu fonksiyon için e-posta güncelleme mantığını ekleyin
-  res.status(200).json({
-    success: true,
-    message: 'E-posta adresiniz başarıyla güncellendi',
-    data: {}
-  });
+  try {
+    const { newEmail, password } = req.body;
+
+    // E-posta güncelleme
+    const { error } = await supabase.auth.updateUser({
+      email: newEmail
+    });
+
+    if (error) {
+      logger.error(`E-posta güncelleme hatası: ${error.message}`);
+      return res.status(400).json({
+        success: false,
+        message: 'E-posta güncelleme başarısız oldu'
+      });
+    }
+
+    // Profil tablosunda da güncelle
+    await supabase
+      .from('users')
+      .update({ email: newEmail })
+      .eq('id', req.user.id);
+
+    logger.info(`Kullanıcı e-postasını güncelledi: ${req.user.email} -> ${newEmail}`);
+    res.status(200).json({
+      success: true,
+      message: 'E-posta adresiniz başarıyla güncellendi, lütfen yeni e-postanızı doğrulayın'
+    });
+  } catch (error) {
+    logger.error(`E-posta güncelleme işleminde hata: ${error.message}`);
+    next(error);
+  }
 };
 
 // Hesap silme
 exports.deleteAccount = async (req, res, next) => {
-  // Bu fonksiyon için hesap silme mantığını ekleyin
-  res.status(200).json({
-    success: true,
-    message: 'Hesabınız başarıyla silindi',
-    data: {}
-  });
-};
+  try {
+    // Supabase Auth ile kullanıcıyı sil
+    const { error } = await supabase.auth.admin.deleteUser(req.user.id);
 
-// Token oluşturma ve yanıt gönderme
-const sendTokenResponse = (user, statusCode, res) => {
-  // JWT token oluştur
-  const token = user.generateAuthToken();
+    if (error) {
+      logger.error(`Kullanıcı silme hatası: ${error.message}`);
+      return res.status(500).json({
+        success: false,
+        message: 'Hesap silme işlemi başarısız oldu'
+      });
+    }
 
-  // Cookie seçenekleri
-  const options = {
-    expires: new Date(
-      Date.now() + (process.env.JWT_COOKIE_EXPIRE || 30) * 24 * 60 * 60 * 1000
-    ),
-    httpOnly: true
-  };
+    // Profil tablosundan da sil (cascade delete yapılmışsa gerekli olmayabilir)
+    await supabase
+      .from('users')
+      .delete()
+      .eq('id', req.user.id);
 
-  // HTTPS ise secure seçeneğini ekle
-  if (process.env.NODE_ENV === 'production') {
-    options.secure = true;
-  }
-
-  // Token'ı cookie olarak gönder
-  res
-    .status(statusCode)
-    .cookie('token', token, options)
-    .json({
+    logger.info(`Kullanıcı hesabı silindi: ${req.user.email}`);
+    res.status(200).json({
       success: true,
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      }
+      message: 'Hesabınız başarıyla silindi'
     });
+  } catch (error) {
+    logger.error(`Hesap silme işleminde hata: ${error.message}`);
+    next(error);
+  }
 };
