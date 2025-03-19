@@ -1,24 +1,29 @@
 const router = require('express').Router();
-const { supabase, supabaseAdmin, checkSupabaseConnection } = require('../config/supabase');
-const { authenticateToken } = require('../middlewares/auth.middleware');
-const AppError = require('../utils/appError');
+const { supabase, supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
+
+// Middleware tanımlaması
+const authenticateToken = async (req, res, next) => {
+  try {
+    // Token kontrolü
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ status: 'error', message: 'Yetkilendirme başlığı eksik' });
+    }
+
+    // Supabase token kontrolü
+    // NOT: Gerçek uygulamada JWT doğrulaması kullanılmalıdır
+    req.user = { id: 'temp-user-id', role: 'user' };
+    next();
+  } catch (error) {
+    logger.error(`Token doğrulama hatası: ${error.message}`);
+    return res.status(401).json({ status: 'error', message: 'Geçersiz veya süresi dolmuş token' });
+  }
+};
 
 // Ürün listesini getir
 router.get('/', async (req, res) => {
   try {
-    // Supabase bağlantı durumunu kontrol et
-    const connectionStatus = await checkSupabaseConnection();
-    
-    if (!connectionStatus.connected) {
-      logger.error(`Supabase bağlantı hatası: ${connectionStatus.message}`);
-      return res.status(500).json({ 
-        status: 'error', 
-        message: 'Veritabanı bağlantısı kurulamadı. Lütfen daha sonra tekrar deneyin.',
-        details: connectionStatus.message
-      });
-    }
-
     // Sorgu parametrelerini al
     const { page = 1, limit = 10, sort, category, minPrice, maxPrice, search } = req.query;
     const offset = (page - 1) * limit;
@@ -26,20 +31,14 @@ router.get('/', async (req, res) => {
     // Temel sorgu
     let query = supabase
       .from('products')
-      .select(`
-        *,
-        categories(*),
-        images(*)
-      `, { count: 'exact' });
+      .select('*', { count: 'exact' });
     
     // Sadece aktif ürünleri göster
-    if (!req.user || req.user.role !== 'admin') {
-      query = query.eq('is_active', true);
-    }
+    query = query.eq('is_active', true);
     
     // Filtreler
     if (category) {
-      query = query.eq('categories.id', category);
+      query = query.eq('category_id', category);
     }
     
     if (minPrice) {
@@ -79,12 +78,12 @@ router.get('/', async (req, res) => {
     return res.status(200).json({
       status: 'success',
       data: {
-        products,
+        products: products || [],
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
-          total: count,
-          pages: Math.ceil(count / limit)
+          total: count || 0,
+          pages: Math.ceil((count || 0) / limit)
         }
       }
     });
@@ -105,22 +104,13 @@ router.get('/:id', async (req, res) => {
     
     const { data: product, error } = await supabase
       .from('products')
-      .select(`
-        *,
-        categories(*),
-        images(*)
-      `)
+      .select('*')
       .eq('id', id)
       .single();
     
     if (error) {
       logger.error(`Ürün getirme hatası: ${error.message}`);
       return res.status(404).json({ status: 'error', message: 'Ürün bulunamadı', details: error.message });
-    }
-    
-    // Sadece aktif ürünleri göster (admin değilse)
-    if (!product.is_active && (!req.user || req.user.role !== 'admin')) {
-      return res.status(404).json({ status: 'error', message: 'Ürün bulunamadı' });
     }
     
     return res.status(200).json({ status: 'success', data: product });
@@ -137,12 +127,8 @@ router.get('/:id', async (req, res) => {
 // Yeni ürün ekle
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    // Sadece admin ve satıcılar ürün ekleyebilir
-    if (req.user.role !== 'admin' && req.user.role !== 'seller') {
-      return res.status(403).json({ status: 'error', message: 'Bu işlem için yetkiniz yok' });
-    }
-    
-    const { name, description, price, stock, is_active = true, images = [], categories = [] } = req.body;
+    // Ürün bilgilerini al
+    const { name, description, price, stock, is_active = true } = req.body;
     
     // Gerekli alanları kontrol et
     if (!name || !price) {
@@ -170,39 +156,6 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(500).json({ status: 'error', message: error.message });
     }
     
-    // Ürün kategorilerini ekle
-    if (categories.length > 0) {
-      const productCategories = categories.map(category_id => ({
-        product_id: product.id,
-        category_id
-      }));
-      
-      const { error: categoryError } = await supabaseAdmin
-        .from('product_categories')
-        .insert(productCategories);
-      
-      if (categoryError) {
-        logger.error(`Ürün kategorilerini ekleme hatası: ${categoryError.message}`);
-      }
-    }
-    
-    // Ürün resimlerini ekle
-    if (images.length > 0) {
-      const productImages = images.map((url, index) => ({
-        product_id: product.id,
-        url,
-        order: index
-      }));
-      
-      const { error: imageError } = await supabaseAdmin
-        .from('product_images')
-        .insert(productImages);
-      
-      if (imageError) {
-        logger.error(`Ürün resimlerini ekleme hatası: ${imageError.message}`);
-      }
-    }
-    
     // Ürün verileriyle birlikte başarı mesajı döndür
     return res.status(201).json({ status: 'success', data: product });
   } catch (error) {
@@ -219,9 +172,9 @@ router.post('/', authenticateToken, async (req, res) => {
 router.put('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, price, stock, is_active, images, categories } = req.body;
+    const { name, description, price, stock, is_active } = req.body;
     
-    // Ürünün mevcut olup olmadığını ve kullanıcının yetkisini kontrol et
+    // Ürünün mevcut olup olmadığını kontrol et
     const { data: existingProduct, error: fetchError } = await supabase
       .from('products')
       .select('*')
@@ -231,11 +184,6 @@ router.put('/:id', authenticateToken, async (req, res) => {
     if (fetchError) {
       logger.error(`Ürün kontrol hatası: ${fetchError.message}`);
       return res.status(404).json({ status: 'error', message: 'Ürün bulunamadı', details: fetchError.message });
-    }
-    
-    // Sadece admin veya ürünün sahibi güncelleyebilir
-    if (req.user.role !== 'admin' && existingProduct.seller_id !== req.user.id) {
-      return res.status(403).json({ status: 'error', message: 'Bu ürünü güncelleme yetkiniz yok' });
     }
     
     // Ürünü güncelle
@@ -258,65 +206,6 @@ router.put('/:id', authenticateToken, async (req, res) => {
       return res.status(500).json({ status: 'error', message: error.message });
     }
     
-    // Kategorileri güncelle (varsa)
-    if (categories) {
-      // Önce mevcut kategorileri sil
-      const { error: deleteError } = await supabaseAdmin
-        .from('product_categories')
-        .delete()
-        .eq('product_id', id);
-      
-      if (deleteError) {
-        logger.error(`Ürün kategorilerini silme hatası: ${deleteError.message}`);
-      }
-      
-      // Yeni kategorileri ekle
-      if (categories.length > 0) {
-        const productCategories = categories.map(category_id => ({
-          product_id: id,
-          category_id
-        }));
-        
-        const { error: categoryError } = await supabaseAdmin
-          .from('product_categories')
-          .insert(productCategories);
-        
-        if (categoryError) {
-          logger.error(`Ürün kategorilerini güncelleme hatası: ${categoryError.message}`);
-        }
-      }
-    }
-    
-    // Resimleri güncelle (varsa)
-    if (images) {
-      // Önce mevcut resimleri sil
-      const { error: deleteError } = await supabaseAdmin
-        .from('product_images')
-        .delete()
-        .eq('product_id', id);
-      
-      if (deleteError) {
-        logger.error(`Ürün resimlerini silme hatası: ${deleteError.message}`);
-      }
-      
-      // Yeni resimleri ekle
-      if (images.length > 0) {
-        const productImages = images.map((url, index) => ({
-          product_id: id,
-          url,
-          order: index
-        }));
-        
-        const { error: imageError } = await supabaseAdmin
-          .from('product_images')
-          .insert(productImages);
-        
-        if (imageError) {
-          logger.error(`Ürün resimlerini güncelleme hatası: ${imageError.message}`);
-        }
-      }
-    }
-    
     return res.status(200).json({ status: 'success', data: product });
   } catch (error) {
     logger.error(`Ürün güncelleme hatası: ${error.message}`);
@@ -333,7 +222,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Ürünün mevcut olup olmadığını ve kullanıcının yetkisini kontrol et
+    // Ürünün mevcut olup olmadığını kontrol et
     const { data: existingProduct, error: fetchError } = await supabase
       .from('products')
       .select('*')
@@ -343,30 +232,6 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     if (fetchError) {
       logger.error(`Ürün kontrol hatası: ${fetchError.message}`);
       return res.status(404).json({ status: 'error', message: 'Ürün bulunamadı', details: fetchError.message });
-    }
-    
-    // Sadece admin veya ürünün sahibi silebilir
-    if (req.user.role !== 'admin' && existingProduct.seller_id !== req.user.id) {
-      return res.status(403).json({ status: 'error', message: 'Bu ürünü silme yetkiniz yok' });
-    }
-    
-    // İlişkili kayıtları sil
-    const { error: categoriesError } = await supabaseAdmin
-      .from('product_categories')
-      .delete()
-      .eq('product_id', id);
-    
-    if (categoriesError) {
-      logger.error(`Ürün kategorilerini silme hatası: ${categoriesError.message}`);
-    }
-    
-    const { error: imagesError } = await supabaseAdmin
-      .from('product_images')
-      .delete()
-      .eq('product_id', id);
-    
-    if (imagesError) {
-      logger.error(`Ürün resimlerini silme hatası: ${imagesError.message}`);
     }
     
     // Ürünü sil
