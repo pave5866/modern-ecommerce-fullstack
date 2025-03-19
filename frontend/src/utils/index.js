@@ -1,32 +1,30 @@
+import toast from 'react-hot-toast';
+
 // Toast mesajları için yardımcı fonksiyon
 export const showToast = {
   success: (message) => {
-    if (window.toast) {
-      window.toast.success(message);
-    } else {
-      console.log('Success:', message);
-    }
+    toast.success(message);
   },
   error: (message) => {
-    if (window.toast) {
-      window.toast.error(message);
-    } else {
-      console.error('Error:', message);
-    }
+    toast.error(message);
   },
   info: (message) => {
-    if (window.toast) {
-      window.toast.info(message);
-    } else {
-      console.info('Info:', message);
-    }
+    toast(message, {
+      icon: '📢',
+      style: {
+        background: '#3498db',
+        color: '#fff',
+      },
+    });
   },
   warning: (message) => {
-    if (window.toast) {
-      window.toast.warning(message);
-    } else {
-      console.warn('Warning:', message);
-    }
+    toast(message, {
+      icon: '⚠️',
+      style: {
+        background: '#f39c12',
+        color: '#fff',
+      },
+    });
   },
 };
 
