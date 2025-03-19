@@ -42,16 +42,16 @@ const Home = () => {
         
         // Hata durumunda örnek veriler göster
         setFeaturedProducts([
-          { _id: 1, name: 'Örnek Ürün 1', price: 99.99, images: ['https://via.placeholder.com/300'] },
-          { _id: 2, name: 'Örnek Ürün 2', price: 149.99, images: ['https://via.placeholder.com/300'] },
-          { _id: 3, name: 'Örnek Ürün 3', price: 199.99, images: ['https://via.placeholder.com/300'] },
-          { _id: 4, name: 'Örnek Ürün 4', price: 129.99, images: ['https://via.placeholder.com/300'] }
+          { _id: "1", name: 'Örnek Ürün 1', price: 99.99, images: ['https://via.placeholder.com/300'] },
+          { _id: "2", name: 'Örnek Ürün 2', price: 149.99, images: ['https://via.placeholder.com/300'] },
+          { _id: "3", name: 'Örnek Ürün 3', price: 199.99, images: ['https://via.placeholder.com/300'] },
+          { _id: "4", name: 'Örnek Ürün 4', price: 129.99, images: ['https://via.placeholder.com/300'] }
         ]);
         
         setCategories([
-          { _id: 1, name: 'Örnek Kategori 1', image: 'https://via.placeholder.com/200' },
-          { _id: 2, name: 'Örnek Kategori 2', image: 'https://via.placeholder.com/200' },
-          { _id: 3, name: 'Örnek Kategori 3', image: 'https://via.placeholder.com/200' }
+          { _id: "1", name: 'Örnek Kategori 1', image: 'https://via.placeholder.com/200' },
+          { _id: "2", name: 'Örnek Kategori 2', image: 'https://via.placeholder.com/200' },
+          { _id: "3", name: 'Örnek Kategori 3', image: 'https://via.placeholder.com/200' }
         ]);
       } finally {
         setLoading(false);
@@ -65,7 +65,7 @@ const Home = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
       </div>
     );
   }
@@ -73,7 +73,7 @@ const Home = () => {
   return (
     <div className="animate-fadeIn">
       {/* Hero bölümü */}
-      <section className="py-12 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl shadow-xl mb-12">
+      <section className="py-12 bg-gradient-to-r from-primary-600 to-blue-700 text-white rounded-xl shadow-xl mb-12">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="md:w-1/2 mb-8 md:mb-0 animate-slideIn">
@@ -83,7 +83,7 @@ const Home = () => {
               </p>
               <Link
                 to="/products"
-                className="inline-flex items-center px-6 py-3 text-lg font-medium rounded-md text-white bg-blue-800 hover:bg-blue-900 transition duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+                className="inline-flex items-center px-6 py-3 text-lg font-medium rounded-md text-white bg-primary-800 hover:bg-primary-900 transition duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
               >
                 Hemen Alışverişe Başla
                 <FiArrowRight className="ml-2" />
@@ -107,7 +107,7 @@ const Home = () => {
           
           <div className="grid md:grid-cols-3 gap-8">
             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-soft hover:shadow-lg transition-shadow duration-300">
-              <div className="text-blue-600 dark:text-blue-400 mb-4">
+              <div className="text-primary-600 dark:text-primary-400 mb-4">
                 <FiTag className="h-10 w-10 mx-auto" />
               </div>
               <h3 className="text-xl font-semibold text-center mb-2 text-gray-800 dark:text-white">En İyi Fiyatlar</h3>
@@ -117,7 +117,7 @@ const Home = () => {
             </div>
             
             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-soft hover:shadow-lg transition-shadow duration-300">
-              <div className="text-blue-600 dark:text-blue-400 mb-4">
+              <div className="text-primary-600 dark:text-primary-400 mb-4">
                 <FiShoppingBag className="h-10 w-10 mx-auto" />
               </div>
               <h3 className="text-xl font-semibold text-center mb-2 text-gray-800 dark:text-white">Kaliteli Ürünler</h3>
@@ -127,7 +127,7 @@ const Home = () => {
             </div>
             
             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-soft hover:shadow-lg transition-shadow duration-300">
-              <div className="text-blue-600 dark:text-blue-400 mb-4">
+              <div className="text-primary-600 dark:text-primary-400 mb-4">
                 <FiTruck className="h-10 w-10 mx-auto" />
               </div>
               <h3 className="text-xl font-semibold text-center mb-2 text-gray-800 dark:text-white">Hızlı Teslimat</h3>
@@ -146,7 +146,7 @@ const Home = () => {
             <h2 className="text-3xl font-bold text-gray-800 dark:text-white">Öne Çıkan Ürünler</h2>
             <Link 
               to="/products" 
-              className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex items-center"
+              className="text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300 flex items-center"
             >
               Tümünü Gör <FiArrowRight className="ml-1" />
             </Link>
@@ -174,10 +174,10 @@ const Home = () => {
                       />
                     </div>
                     <div className="p-4">
-                      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-200">
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors duration-200">
                         {product.name}
                       </h3>
-                      <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                      <p className="text-xl font-bold text-primary-600 dark:text-primary-400">
                         {product.price?.toFixed(2)} TL
                       </p>
                     </div>
