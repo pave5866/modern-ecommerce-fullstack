@@ -19,19 +19,27 @@ export default defineConfig({
     // Bağımlılık hatalarını görmezden gel
     chunkSizeWarningLimit: 1600,
     rollupOptions: {
+      // Kritik modülleri external olarak işaretleme
       external: [],
       output: {
-        manualChunks: (id) => {
-          if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('redux') || id.includes('axios')) {
-              return 'vendor';
-            }
-            if (id.includes('antd') || id.includes('@ant-design')) {
-              return 'ui';
-            }
-            // Diğer node_modules paketleri için
-            return 'deps';
-          }
+        // Global değişkenleri tanımla
+        globals: {
+          react: 'React',
+          'react-dom': 'ReactDOM',
+          'react-redux': 'ReactRedux'
+        },
+        // Paketleri manuel olarak böl
+        manualChunks: {
+          vendor: [
+            'react', 
+            'react-dom', 
+            'react-router-dom',
+            'react-redux',
+            '@reduxjs/toolkit',
+            'redux-persist',
+            'axios'
+          ],
+          ui: ['antd', '@ant-design/icons'],
         }
       },
     },
