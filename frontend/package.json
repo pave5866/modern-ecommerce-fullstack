@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "node -e \"const fs=require('fs'); const filePath='./src/utils/toast.js'; let content=fs.readFileSync(filePath, 'utf8'); content=content.replace(/from ['\\\"]react-toastify['\\\"]/, \"from 'react-hot-toast'\"); fs.writeFileSync(filePath, content);\"",
-    "build": "npm run prebuild && vite build",
+    "prebuild": "node scripts/fix-imports.js",
+    "build": "vite build",
     "build:render": "vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
