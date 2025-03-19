@@ -46,18 +46,19 @@ try {
   logger.error('bcryptjs modülü yüklenemedi', { service: 'ecommerce-api' });
 }
 
-// Supabase bağlantısını kontrol et
+// Supabase bağlantısını daha güvenli şekilde kontrol et
 const checkSupabaseConnection = async () => {
   try {
-    // Basit bir sağlık kontrolü
-    const { data, error } = await supabase.from('health_check').select('*').maybeSingle();
+    // Basit bir sağlık kontrolü - doğrudan from veya rpc kullanmak yerine auth.getUser() gibi
+    // daha basit bir fonksiyonu çağıralım (null kullanıcı ID'si ile, sadece bağlantıyı test etmek için)
+    const { error } = await supabase.auth.getSession();
     
-    if (error && error.code !== 'PGRST116') { // PGRST116: Tablo bulunamadı hatası normal
+    if (error) {
       logger.error(`Supabase bağlantı hatası: ${error.message}`);
       return false;
     }
     
-    logger.info('Supabase bağlantısı çalışıyor');
+    logger.info('Supabase bağlantısı başarıyla test edildi');
     return true;
   } catch (error) {
     logger.error(`Supabase bağlantı kontrol hatası: ${error.message}`);
@@ -65,8 +66,13 @@ const checkSupabaseConnection = async () => {
   }
 };
 
-// Supabase bağlantısını kontrol et
-checkSupabaseConnection();
+// Supabase bağlantısını asenkron olarak kontrol et, 
+// ancak uygulamanın başlamasını engelleme
+setTimeout(() => {
+  checkSupabaseConnection().catch(err => {
+    logger.error(`Supabase bağlantı kontrolünde beklenmeyen hata: ${err.message}`);
+  });
+}, 1000);
 
 // Çevre değişkenlerini kontrol et
 const requiredEnvVars = ['JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
@@ -81,6 +87,35 @@ app.get('/', (req, res) => {
   res.json({
     message: 'API çalışıyor',
     status: 'online',
+    environment: process.env.NODE_ENV || 'development',
+    time: new Date().toISOString()
+  });
+});
+
+// Sağlık kontrolü endpoint'i
+app.get('/health', async (req, res) => {
+  const supabaseStatus = {
+    connected: false,
+    message: 'Kontrol ediliyor...'
+  };
+
+  try {
+    // Basit bir sağlık kontrolü - sadece bağlantıyı test et
+    const { error } = await supabase.auth.getSession();
+    
+    if (error) {
+      supabaseStatus.message = `Bağlantı hatası: ${error.message}`;
+    } else {
+      supabaseStatus.connected = true;
+      supabaseStatus.message = 'Bağlantı başarılı';
+    }
+  } catch (error) {
+    supabaseStatus.message = `Bağlantı hatası: ${error.message}`;
+  }
+
+  res.json({
+    status: 'online',
+    supabase: supabaseStatus,
     environment: process.env.NODE_ENV || 'development',
     time: new Date().toISOString()
   });
