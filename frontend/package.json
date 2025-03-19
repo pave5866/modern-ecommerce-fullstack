@@ -7,7 +7,7 @@
     "dev": "vite",
     "prebuild": "node scripts/fix-imports.cjs",
     "build": "vite build",
-    "build:render": "vite build",
+    "build:render": "NODE_ENV=production vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
