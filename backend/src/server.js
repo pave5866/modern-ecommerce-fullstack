@@ -5,7 +5,7 @@ const morgan = require('morgan');
 const winston = require('winston');
 const path = require('path');
 const fs = require('fs');
-const { connectDB } = require('./db/mongodb');
+const { supabase } = require('./config/supabase');
 
 // Winston logger yapılandırması
 const logger = winston.createLogger({
@@ -46,6 +46,28 @@ try {
   logger.error('bcryptjs modülü yüklenemedi', { service: 'ecommerce-api' });
 }
 
+// Supabase bağlantısını kontrol et
+const checkSupabaseConnection = async () => {
+  try {
+    // Basit bir sağlık kontrolü
+    const { data, error } = await supabase.from('health_check').select('*').maybeSingle();
+    
+    if (error && error.code !== 'PGRST116') { // PGRST116: Tablo bulunamadı hatası normal
+      logger.error(`Supabase bağlantı hatası: ${error.message}`);
+      return false;
+    }
+    
+    logger.info('Supabase bağlantısı çalışıyor');
+    return true;
+  } catch (error) {
+    logger.error(`Supabase bağlantı kontrol hatası: ${error.message}`);
+    return false;
+  }
+};
+
+// Supabase bağlantısını kontrol et
+checkSupabaseConnection();
+
 // Çevre değişkenlerini kontrol et
 const requiredEnvVars = ['JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
 const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
@@ -53,13 +75,6 @@ const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
 if (missingEnvVars.length > 0) {
   logger.error(`Eksik çevre değişkenleri: ${missingEnvVars.join(', ')}`);
 }
-
-// MongoDB bağlantısı
-connectDB().then(() => {
-  logger.info('MongoDB bağlantı fonksiyonu çalıştırıldı');
-}).catch(err => {
-  logger.error(`MongoDB bağlantı fonksiyonu hatası: ${err.message}`);
-});
 
 // Ana rota - API durumunu kontrol etmek için
 app.get('/', (req, res) => {
