@@ -1,15 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
-// Her bileşeni ayrı import edelim
-import Card from 'antd/es/card';
-import Rate from 'antd/es/rate';
-import Typography from 'antd/es/typography';
-import Button from 'antd/es/button';
-import Image from 'antd/es/image';
-import Badge from 'antd/es/badge';
-import Space from 'antd/es/space';
-import message from 'antd/es/message';
+import { Card, Rate, Typography, Button, Image, Badge, Space, message } from 'antd';
 import { ShoppingCartOutlined, HeartOutlined, HeartFilled, EyeOutlined } from '@ant-design/icons';
 import { addToCart } from '../features/cart/cartSlice';
 import { toggleWishlist } from '../features/wishlist/wishlistSlice';
