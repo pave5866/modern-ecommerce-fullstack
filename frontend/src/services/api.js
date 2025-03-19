@@ -1,4 +1,5 @@
 import axios from 'axios';
+import logger from '../utils/logger';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:10000';
 
@@ -17,9 +18,33 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    logger.info('API isteği', { url: config.url, method: config.method });
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    logger.error('API isteği hatası', { error: error.message });
+    return Promise.reject(error);
+  }
+);
+
+// Yanıt interceptor'ı
+apiClient.interceptors.response.use(
+  (response) => {
+    logger.info('API yanıtı alındı', { 
+      url: response.config.url, 
+      status: response.status,
+      success: true 
+    });
+    return response;
+  },
+  (error) => {
+    logger.error('API yanıt hatası', { 
+      url: error.config?.url, 
+      status: error.response?.status, 
+      message: error.response?.data?.message || error.message
+    });
+    return Promise.reject(error);
+  }
 );
 
 // Product API
@@ -141,32 +166,70 @@ export const categoryAPI = {
 export const authAPI = {
   login: async (credentials) => {
     try {
+      // Tüm API hata bilgilerini loglayalım
+      logger.info('Giriş yapılıyor', { email: credentials.email });
+      
       const response = await apiClient.post('/auth/login', credentials);
+      
+      logger.info('Giriş başarılı', { email: credentials.email });
+      
       return {
         success: true,
         user: response.data.user,
         token: response.data.token,
       };
     } catch (error) {
+      let errorMessage = 'Giriş yapılamadı';
+      
+      if (error.response) {
+        errorMessage = error.response.data?.message || 'E-posta veya şifre hatalı';
+        
+        // Detaylı hata bilgilerini logla
+        logger.error('Giriş hatası detayları', { 
+          status: error.response.status,
+          data: error.response.data,
+          headers: error.response.headers
+        });
+      }
+      
       return {
         success: false,
-        error: error.response?.data?.message || error.message,
+        error: errorMessage,
       };
     }
   },
   
   register: async (userData) => {
     try {
+      // Tüm API hata bilgilerini loglayalım
+      logger.info('Kayıt yapılıyor', { email: userData.email });
+      
       const response = await apiClient.post('/auth/register', userData);
+      
+      logger.info('Kayıt başarılı', { user: response.data.user?.email });
+      
       return {
         success: true,
         user: response.data.user,
         token: response.data.token,
       };
     } catch (error) {
+      let errorMessage = 'Kayıt yapılamadı';
+      
+      if (error.response) {
+        errorMessage = error.response.data?.message || 'Kayıt sırasında bir hata oluştu';
+        
+        // Detaylı hata bilgilerini logla
+        logger.error('Kayıt hatası detayları', { 
+          status: error.response.status,
+          data: error.response.data,
+          headers: error.response.headers
+        });
+      }
+      
       return {
         success: false,
-        error: error.response?.data?.message || error.message,
+        error: errorMessage,
       };
     }
   },
@@ -187,8 +250,27 @@ export const authAPI = {
   },
 };
 
+// Test fonksiyonu - Backend'in çalışıp çalışmadığını kontrol et
+export const testAPI = async () => {
+  try {
+    const response = await apiClient.get('/');
+    return {
+      success: true,
+      message: response.data.message || 'API çalışıyor',
+      status: response.status,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || error.message,
+      status: error.response?.status,
+    };
+  }
+};
+
 export default {
   product: productAPI,
   category: categoryAPI,
   auth: authAPI,
+  test: testAPI,
 };
