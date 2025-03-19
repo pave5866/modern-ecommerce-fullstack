@@ -6,10 +6,8 @@ const path = require('path');
 const logger = require('./utils/logger');
 const { 
   checkSupabaseConnection, 
-  testSupabaseConnection, 
-  resolveSupabaseDomain,
-  fixConnectionIssues,
-  connectWithIP
+  testSupabaseConnection,
+  useMockData
 } = require('./config/supabase');
 
 // Çevre değişkenlerini yükle
@@ -37,12 +35,6 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // Ana sayfa - API durumu
 app.get('/', async (req, res) => {
   try {
-    // DNS çözümlemesi yap
-    const ipAddress = await resolveSupabaseDomain();
-    
-    // Doğrudan bağlantı testi
-    const directConnectionTest = await testSupabaseConnection();
-    
     // Supabase bağlantı durumunu kontrol et
     const supabaseStatus = await checkSupabaseConnection();
     
@@ -55,9 +47,7 @@ app.get('/', async (req, res) => {
       supabase: {
         connected: supabaseStatus.connected,
         message: supabaseStatus.message,
-        dnsResolved: ipAddress !== null,
-        ipAddress,
-        directConnectionTest
+        mockMode: supabaseStatus.mockMode || useMockData
       }
     });
   } catch (error) {
@@ -75,48 +65,22 @@ app.get('/', async (req, res) => {
 // Sağlık kontrolü endpoint'i
 app.get('/health', async (req, res) => {
   try {
-    // DNS çözümlemesi yap
-    const ipAddress = await resolveSupabaseDomain();
-    
-    // Doğrudan bağlantı testi
-    const directConnectionTest = await testSupabaseConnection();
-    
-    // IP ile bağlantı dene
-    const ipConnectionTest = await connectWithIP();
-    
-    // Bağlantı sorunlarını düzeltmeyi dene
-    const fixedIssues = await fixConnectionIssues();
-    
     // Supabase bağlantı durumunu kontrol et
     const supabaseStatus = await checkSupabaseConnection();
     
-    if (!supabaseStatus.connected) {
+    if (!supabaseStatus.connected && !supabaseStatus.mockMode) {
       return res.status(200).json({
         status: 'warning',
-        message: 'API çalışıyor ancak tam Supabase bağlantısı kurulamıyor',
-        supabase: {
-          ...supabaseStatus,
-          dnsResolved: ipAddress !== null,
-          ipAddress,
-          directConnectionTest,
-          ipConnectionTest,
-          fixedIssues
-        }
+        message: 'API çalışıyor ancak gerçek Supabase bağlantısı kurulamıyor',
+        supabase: supabaseStatus
       });
     }
     
     // Tüm sistemler çalışıyor
     return res.status(200).json({
       status: 'success',
-      message: 'Tüm sistemler aktif',
-      supabase: {
-        ...supabaseStatus,
-        dnsResolved: ipAddress !== null,
-        ipAddress,
-        directConnectionTest,
-        ipConnectionTest,
-        fixedIssues
-      }
+      message: supabaseStatus.mockMode ? 'API mock veri modu ile çalışıyor' : 'Tüm sistemler aktif',
+      supabase: supabaseStatus
     });
   } catch (error) {
     logger.error(`Sağlık kontrolü hatası: ${error.message}`);
@@ -131,21 +95,11 @@ app.get('/health', async (req, res) => {
 // Veritabanı bağlantı testi endpoint'i
 app.get('/db-test', async (req, res) => {
   try {
-    // DNS çözümlemesi yap
-    const ipAddress = await resolveSupabaseDomain();
-    logger.info(`DNS çözümlemesi: ${ipAddress || 'başarısız'}`);
+    // Supabase bağlantı durumunu kontrol et
+    const supabaseStatus = await checkSupabaseConnection();
     
     // Doğrudan bağlantı testi
     const directConnectionTest = await testSupabaseConnection();
-    logger.info(`Doğrudan bağlantı testi: ${directConnectionTest ? 'başarılı' : 'başarısız'}`);
-    
-    // IP ile bağlantı dene
-    const ipConnectionTest = await connectWithIP();
-    logger.info(`IP ile bağlantı testi: ${ipConnectionTest ? 'başarılı' : 'başarısız'}`);
-    
-    // Bağlantı sorunlarını düzeltmeyi dene
-    const fixedIssues = await fixConnectionIssues();
-    logger.info(`Bağlantı düzeltme: ${fixedIssues ? 'başarılı' : 'başarısız'}`);
     
     // Çevre değişkenlerini kontrol et
     const envVars = {
@@ -158,13 +112,9 @@ app.get('/db-test', async (req, res) => {
     return res.status(200).json({
       status: 'success',
       message: 'Veritabanı bağlantı testi sonuçları',
-      dnsResolution: {
-        success: ipAddress !== null,
-        ipAddress
-      },
+      mockMode: supabaseStatus.mockMode || useMockData,
+      supabaseStatus,
       directConnectionTest,
-      ipConnectionTest,
-      fixedIssues,
       environmentVariables: envVars
     });
   } catch (error) {
@@ -269,57 +219,27 @@ app.use((err, req, res, next) => {
 });
 
 // Sunucuyu başlat
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   logger.info(`Sunucu ${PORT} portunda çalışıyor`);
   logger.info(`Mod: ${process.env.NODE_ENV || 'development'}`);
   
-  // Bağlantı sorunlarını önlemek için ana başlatma işlemleri
-  Promise.all([
-    // DNS çözümlemesi
-    resolveSupabaseDomain(),
-    // Bağlantı sorunlarını çözmeyi dene
-    fixConnectionIssues()
-  ])
-  .then(([ipAddress, fixed]) => {
-    if (ipAddress) {
-      logger.info(`Supabase domain çözümleme başarılı: ${ipAddress}`);
-    } else {
-      logger.warn('Supabase domain çözümlemesi başarısız');
-    }
+  // Supabase bağlantısını kontrol et
+  try {
+    const status = await checkSupabaseConnection();
     
-    // Doğrudan bağlantı testi
-    return Promise.all([
-      testSupabaseConnection(),
-      connectWithIP()
-    ]);
-  })
-  .then(([directSuccess, ipSuccess]) => {
-    if (directSuccess) {
-      logger.info('Supabase doğrudan bağlantı testi başarılı');
-    } else {
-      logger.warn('Supabase doğrudan bağlantı testi başarısız');
-    }
-    
-    if (ipSuccess) {
-      logger.info('Supabase IP ile bağlantı testi başarılı');
-    } else {
-      logger.warn('Supabase IP ile bağlantı testi başarısız');
-    }
-    
-    // Supabase bağlantısını kontrol et
-    return checkSupabaseConnection();
-  })
-  .then(status => {
-    if (status.connected) {
-      logger.info('Supabase bağlantısı başarılı');
+    if (status.connected && !status.mockMode) {
+      logger.info('Supabase bağlantısı başarılı - Gerçek veri modu aktif');
+    } else if (status.mockMode) {
+      logger.info('Supabase mock veri modu aktif - API demo verileriyle çalışıyor');
+      logger.info('Not: Frontend geliştirmeleri için yeterli olacaktır. Gerçek veri için Supabase yapılandırmanızı kontrol edin.');
     } else {
       logger.warn(`Supabase bağlantısı başarısız: ${status.message}`);
       logger.warn('API sınırlı modda çalışacak (bazı özellikler kullanılamayabilir)');
     }
-  })
-  .catch(err => {
+  } catch (err) {
     logger.error(`Supabase bağlantı kontrolü başarısız: ${err.message}`);
-  });
+    logger.info('API mock veri modu ile çalışmaya devam edecek');
+  }
 });
 
 // İşlem sonlandırma sinyallerini yakala
