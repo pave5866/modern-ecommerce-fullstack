@@ -1,24 +1,30 @@
-[[redirects]]
-  from = "/api/*"
-  to = "https://modern-ecommerce-fullstack.onrender.com/api/:splat"
-  status = 200
-  force = true
-  
-  [redirects.headers]
-  Access-Control-Allow-Origin = "*"
-  Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-  Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With, Accept, Origin"
-  Access-Control-Allow-Credentials = "true"
-
-[[headers]]
-  for = "/*"
-  
-  [headers.values]
-  Access-Control-Allow-Origin = "*"
-  Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-  Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With, Accept, Origin"
-  Access-Control-Allow-Credentials = "true"
-
 [build]
-  command = "npm install && export NODE_OPTIONS=--max-old-space-size=4096 && CI=false npm run build"
+  command = "vite build --emptyOutDir --minify terser --outDir dist"
   publish = "dist"
+  
+[build.environment]
+  NODE_VERSION = "18.16.0"
+  # Düzenli JS uygulaması için build parametreleri
+  VITE_DROP_CONSOLE = "true"
+  
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  
+[build.processing]
+  skip_processing = false
+  
+[build.processing.css]
+  bundle = true
+  minify = true
+  
+[build.processing.js]
+  bundle = true
+  minify = true
+  
+[build.processing.html]
+  pretty_urls = true
+  
+[build.processing.images]
+  compress = true
