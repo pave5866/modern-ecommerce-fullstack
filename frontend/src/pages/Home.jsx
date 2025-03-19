@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { FiArrowRight, FiTag, FiShoppingBag, FiTruck } from 'react-icons/fi';
-import apiService from '../utils/api';
+import { productAPI, categoryAPI } from '../services/api';
+import logger from '../utils/logger';
 
 const Home = () => {
   const [featuredProducts, setFeaturedProducts] = useState([]);
@@ -12,30 +13,45 @@ const Home = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Öne çıkan ürünleri ve kategorileri eş zamanlı olarak getir
-        const [productsResponse, categoriesResponse] = await Promise.all([
-          apiService.getProducts({ limit: 4, sort: 'rating,desc' }),
-          apiService.getCategories()
-        ]);
+        logger.info('Ana sayfa verileri yükleniyor');
 
-        setFeaturedProducts(productsResponse.data.data || []);
-        setCategories(categoriesResponse.data.data || []);
+        // Öne çıkan ürünleri ve kategorileri getir
+        const productsResponse = await productAPI.getAll({ limit: 4, sort: 'newest' });
+        const categoriesResponse = await categoryAPI.getAll();
+
+        // Veri kontrolü ve varsayılan değerler
+        if (productsResponse.success) {
+          setFeaturedProducts(Array.isArray(productsResponse.data) ? productsResponse.data : []);
+        } else {
+          throw new Error(productsResponse.error || 'Ürünler yüklenemedi');
+        }
+
+        if (categoriesResponse.success) {
+          setCategories(Array.isArray(categoriesResponse.data) ? categoriesResponse.data : []);
+        } else {
+          throw new Error(categoriesResponse.error || 'Kategoriler yüklenemedi');
+        }
+
+        logger.info('Ana sayfa verileri başarıyla yüklendi', {
+          productsCount: featuredProducts.length,
+          categoriesCount: categories.length
+        });
       } catch (err) {
-        console.error('Ana sayfa verilerini getirirken hata oluştu:', err);
+        logger.error('Ana sayfa verilerini getirirken hata oluştu:', err);
         setError('Ürünler ve kategoriler yüklenirken bir hata oluştu.');
         
         // Hata durumunda örnek veriler göster
         setFeaturedProducts([
-          { id: 1, name: 'Örnek Ürün 1', price: 99.99, image: 'https://via.placeholder.com/300' },
-          { id: 2, name: 'Örnek Ürün 2', price: 149.99, image: 'https://via.placeholder.com/300' },
-          { id: 3, name: 'Örnek Ürün 3', price: 199.99, image: 'https://via.placeholder.com/300' },
-          { id: 4, name: 'Örnek Ürün 4', price: 129.99, image: 'https://via.placeholder.com/300' }
+          { _id: 1, name: 'Örnek Ürün 1', price: 99.99, images: ['https://via.placeholder.com/300'] },
+          { _id: 2, name: 'Örnek Ürün 2', price: 149.99, images: ['https://via.placeholder.com/300'] },
+          { _id: 3, name: 'Örnek Ürün 3', price: 199.99, images: ['https://via.placeholder.com/300'] },
+          { _id: 4, name: 'Örnek Ürün 4', price: 129.99, images: ['https://via.placeholder.com/300'] }
         ]);
         
         setCategories([
-          { id: 1, name: 'Örnek Kategori 1', image: 'https://via.placeholder.com/200' },
-          { id: 2, name: 'Örnek Kategori 2', image: 'https://via.placeholder.com/200' },
-          { id: 3, name: 'Örnek Kategori 3', image: 'https://via.placeholder.com/200' }
+          { _id: 1, name: 'Örnek Kategori 1', image: 'https://via.placeholder.com/200' },
+          { _id: 2, name: 'Örnek Kategori 2', image: 'https://via.placeholder.com/200' },
+          { _id: 3, name: 'Örnek Kategori 3', image: 'https://via.placeholder.com/200' }
         ]);
       } finally {
         setLoading(false);
@@ -143,30 +159,36 @@ const Home = () => {
           )}
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {featuredProducts.map((product) => (
-              <div 
-                key={product.id} 
-                className="product-card group bg-white dark:bg-gray-800 overflow-hidden"
-              >
-                <Link to={`/products/${product.id}`} className="block relative">
-                  <div className="aspect-w-1 aspect-h-1 w-full overflow-hidden bg-gray-200 dark:bg-gray-700">
-                    <img
-                      src={product.image || "https://via.placeholder.com/300"}
-                      alt={product.name}
-                      className="object-cover object-center w-full h-full transform group-hover:scale-105 transition-transform duration-300"
-                    />
-                  </div>
-                  <div className="p-4">
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-200">
-                      {product.name}
-                    </h3>
-                    <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                      {product.price?.toFixed(2)} TL
-                    </p>
-                  </div>
-                </Link>
+            {featuredProducts && featuredProducts.length > 0 ? (
+              featuredProducts.map((product) => (
+                <div 
+                  key={product._id} 
+                  className="product-card group bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300"
+                >
+                  <Link to={`/products/${product._id}`} className="block relative">
+                    <div className="aspect-w-1 aspect-h-1 w-full overflow-hidden bg-gray-200 dark:bg-gray-700">
+                      <img
+                        src={(product.images && product.images.length > 0) ? product.images[0] : "https://via.placeholder.com/300"}
+                        alt={product.name}
+                        className="object-cover object-center w-full h-full transform group-hover:scale-105 transition-transform duration-300"
+                      />
+                    </div>
+                    <div className="p-4">
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-200">
+                        {product.name}
+                      </h3>
+                      <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                        {product.price?.toFixed(2)} TL
+                      </p>
+                    </div>
+                  </Link>
+                </div>
+              ))
+            ) : (
+              <div className="col-span-4 text-center p-8">
+                <p className="text-gray-500 dark:text-gray-400">Henüz gösterilecek ürün bulunmuyor.</p>
               </div>
-            ))}
+            )}
           </div>
         </div>
       </section>
@@ -177,26 +199,32 @@ const Home = () => {
           <h2 className="text-3xl font-bold text-center mb-12 text-gray-800 dark:text-white">Kategoriler</h2>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {categories.map((category) => (
-              <Link 
-                key={category.id} 
-                to={`/products?category=${category.id}`}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-soft hover:shadow-lg transition-all duration-300 overflow-hidden transform hover:-translate-y-1"
-              >
-                <div className="aspect-w-16 aspect-h-9 w-full">
-                  <img
-                    src={category.image || "https://via.placeholder.com/400x225"}
-                    alt={category.name}
-                    className="object-cover object-center w-full h-full"
-                  />
-                </div>
-                <div className="p-6">
-                  <h3 className="text-xl font-semibold text-center text-gray-800 dark:text-white">
-                    {category.name}
-                  </h3>
-                </div>
-              </Link>
-            ))}
+            {categories && categories.length > 0 ? (
+              categories.map((category) => (
+                <Link 
+                  key={category._id} 
+                  to={`/products?category=${category.name}`}
+                  className="bg-white dark:bg-gray-800 rounded-xl shadow-soft hover:shadow-lg transition-all duration-300 overflow-hidden transform hover:-translate-y-1"
+                >
+                  <div className="aspect-w-16 aspect-h-9 w-full">
+                    <img
+                      src={category.image || "https://via.placeholder.com/400x225"}
+                      alt={category.name}
+                      className="object-cover object-center w-full h-full"
+                    />
+                  </div>
+                  <div className="p-6">
+                    <h3 className="text-xl font-semibold text-center text-gray-800 dark:text-white">
+                      {category.name}
+                    </h3>
+                  </div>
+                </Link>
+              ))
+            ) : (
+              <div className="col-span-3 text-center p-8">
+                <p className="text-gray-500 dark:text-gray-400">Henüz gösterilecek kategori bulunmuyor.</p>
+              </div>
+            )}
           </div>
         </div>
       </section>
