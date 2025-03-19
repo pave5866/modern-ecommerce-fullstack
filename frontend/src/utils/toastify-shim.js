@@ -13,15 +13,16 @@ export const Flip = { DEFAULT: 'flip' };
 export const Slide = { DEFAULT: 'slide' };
 export const Zoom = { DEFAULT: 'zoom' };
 
-// Ana toast fonksiyonu
-export default {
+// "toast" değişkenini de doğrudan export et
+export const toast = {
   success: (message, options = {}) => toast.success(message, options),
   error: (message, options = {}) => toast.error(message, options),
-  info: (message, options = {}) => toast.success(message, options),
+  info: (message, options = {}) => toast(message, options),
   warn: (message, options = {}) => toast(message, { ...options, icon: '⚠️' }),
+  warning: (message, options = {}) => toast(message, { ...options, icon: '⚠️' }),
   loading: (message, options = {}) => toast.loading(message, options),
   dismiss: () => toast.dismiss(),
 };
 
-// Bireysel fonksiyonları da export et
-export const { success, error, info, warn, loading, dismiss } = toast;
+// Default export
+export default toast;
