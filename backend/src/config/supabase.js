@@ -22,10 +22,11 @@ const httpsAgent = new https.Agent({
   family: 4 // IPv4 kullan
 });
 
-// Supabase bağlantı bilgileri
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://sswetlrirroabaohdduk.supabase.co';
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzd2V0bHJpcnJvYWJhb2hkZHVrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MjMzNTM1MCwiZXhwIjoyMDU3OTExMzUwfQ.JqE_Wl6CHpqg9xCJ0R0g5NhkR2Fq-XPz5D3oTb-JJfA';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzd2V0bHJpcnJvYWJhb2hkZHVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIzMzUzNTAsImV4cCI6MjA1NzkxMTM1MH0.asAHLpi0pp20AKcTHxzRbB57sM4qRZidBsY_0qSG43Q';
+// Supabase bağlantı bilgileri - Doğru anahtarlarla güncellendi
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ssewetlrirroabaohdduk.supabase.co';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzZXd0bHJpcnJvYWJhb2hkZHVrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MjMzNTM1MCwiZXhwIjoyMDU3OTExMzUwfQ.bqlStX6sBBOmb881X5BalqDRGvl9p8rGNMspWk34V4U';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzZXd0bHJpcnJvYWJhb2hkZHVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIzMzUzNTAsImV4cCI6MjA1NzkxMTM1MH0.asAHLpi0pp20AKcTHxzRbB57sM4qRZidBsY_0qSG43Q';
+const JWT_SECRET = process.env.JWT_SECRET || 'eyaM51ZPwTQJr5J8J7e3Nrf0HYuaIyaTnrrunP9up1fiGk4dUXgfMVKAeZozhWsuYB/tIwppfZ0Y7GUyYKkWqQ==';
 
 // Hata kontrolü
 if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
@@ -39,7 +40,7 @@ if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
 
 // Bağlantı URL'sini kontrol et ve düzelt
 const fixSupabaseUrl = (url) => {
-  if (!url) return 'https://sswetlrirroabaohdduk.supabase.co';
+  if (!url) return 'https://ssewetlrirroabaohdduk.supabase.co';
   if (!url.startsWith('http')) return `https://${url}`;
   return url;
 };
